@@ -18,7 +18,6 @@ export function MiniPlayer() {
       style={{
         marginHorizontal: 12, marginBottom: 8, height: 64, borderRadius: 32, backgroundColor: colors.label,
         flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 10, paddingRight: 8,
-        shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 12, shadowOffset: { width: 0, height: 8 },
       }}
     >
       <Disc cover={track.cover} size={44} finish="picture" spinning={playing} holeColor={colors.label} />

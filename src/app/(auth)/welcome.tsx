@@ -24,9 +24,7 @@ export default function Welcome() {
             node: <View style={{ borderRadius: 20, borderWidth: 2, borderColor: colors.black }}><Cover cover={k} size={40} radius={20} /></View>,
           }))}
         />
-        <View style={{ shadowColor: '#FF6B57', shadowOpacity: 0.35, shadowRadius: 45, shadowOffset: { width: 0, height: 0 } }}>
-          <Disc cover="night" size={220} spinning label={0.55} holeColor={colors.black} />
-        </View>
+        <Disc cover="night" size={220} spinning label={0.55} holeColor={colors.black} glow={{ color: '#FF6B57', radius: 45 }} />
       </View>
 
       <Text accessibilityRole="header" style={[type.hero, { color: colors.white, marginTop: 36, fontSize: 40 }]}>music-room</Text>

@@ -15,16 +15,29 @@ type Props = {
   label?: number;
   holeColor?: string;
   duration?: number;
+  /** soft coloured glow behind the record. Drawn on a static layer so the spin never re-rasterises a shadow. */
+  glow?: { color: string; radius?: number; opacity?: number; offsetY?: number };
 };
 
 /** A record whose centre label is the album cover. */
-export function Disc({ cover, size, spinning = false, finish = 'silver', label = 0.47, holeColor = colors.bg, duration = 3600 }: Props) {
+export function Disc({ cover, size, spinning = false, finish = 'silver', label = 0.47, holeColor = colors.bg, duration = 3600, glow }: Props) {
   const r = size / 2;
   const labelSize = finish === 'picture' ? size : Math.round(size * label);
   const hole = Math.max(4, Math.round(size * 0.04));
   const body = finish === 'vinyl' ? colors.vinyl : colors.chrome;
   const groove = finish === 'vinyl' ? colors.vinylGroove : colors.bg;
   return (
+    <View style={{ width: size, height: size }}>
+      {glow && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute', width: size, height: size, borderRadius: r, backgroundColor: body,
+            shadowColor: glow.color, shadowOpacity: glow.opacity ?? 0.35, shadowRadius: glow.radius ?? 30,
+            shadowOffset: { width: 0, height: glow.offsetY ?? 0 },
+          }}
+        />
+      )}
     <Spin running={spinning} duration={duration} style={{ width: size, height: size }}>
       {finish !== 'picture' && (
         <Svg width={size} height={size} viewBox="0 0 100 100" style={{ position: 'absolute' }}>
@@ -40,5 +53,6 @@ export function Disc({ cover, size, spinning = false, finish = 'silver', label =
       </View>
       <View style={{ position: 'absolute', left: r - hole / 2, top: r - hole / 2, width: hole, height: hole, borderRadius: hole / 2, backgroundColor: holeColor }} />
     </Spin>
+    </View>
   );
 }

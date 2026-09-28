@@ -18,8 +18,8 @@ export default function NowPlaying() {
       </View>
 
       {/* the cover's own colour drives the only nuances on this screen: the glow and the progress */}
-      <View style={{ alignSelf: 'center', marginTop: 16, borderRadius: 171, shadowColor: art.base, shadowOpacity: 0.35, shadowRadius: 30, shadowOffset: { width: 0, height: 24 } }}>
-        <Disc cover={track.cover} size={330} spinning={playing} duration={4000} />
+      <View style={{ alignSelf: 'center', marginTop: 16 }}>
+        <Disc cover={track.cover} size={330} spinning={playing} duration={4000} glow={{ color: art.base, radius: 30, offsetY: 24 }} />
       </View>
 
       <View style={{ marginTop: 40, gap: 4 }}>

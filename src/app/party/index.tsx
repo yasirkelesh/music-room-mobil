@@ -51,9 +51,7 @@ export default function Party() {
               : <Avatar person={p} size={36} override={p.tone === 'ink' ? { bg: colors.chromeLight, fg: colors.black } : undefined} />,
           }))}
         />
-        <View style={{ shadowColor: art.ink, shadowOpacity: 0.4, shadowRadius: 45, shadowOffset: { width: 0, height: 0 } }}>
-          <Disc cover={now.cover} size={220} spinning label={0.55} holeColor={colors.black} />
-        </View>
+        <Disc cover={now.cover} size={220} spinning label={0.55} holeColor={colors.black} glow={{ color: art.ink, radius: 45, opacity: 0.4 }} />
       </View>
 
       <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' }}>
