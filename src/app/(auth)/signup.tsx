@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { api } from '@/api/client';
 import { describeError } from '@/api/errors';
+import { GoogleButton } from '@/components/GoogleButton';
 import { Check, Divider, FieldHint, FieldRow, FormError, Group, Pill, Screen, Sub, tap, TextButton, Title, TopBar } from '@/components/ui';
 import { colors, type } from '@/theme';
 
@@ -83,10 +84,7 @@ export default function Signup() {
       {!valid && !busy && <FieldHint>{!name.trim() ? 'Adını yaz.' : !email.includes('@') ? 'Geçerli bir e-posta gir.' : password.length < MIN ? `Şifre en az ${MIN} karakter olmalı.` : password.length > MAX ? `Şifre en fazla ${MAX} karakter olabilir.` : 'Devam etmek için koşulları kabul et.'}</FieldHint>}
 
       <Divider label="ya da" />
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Pill title="Google" variant="secondary" style={{ flex: 1 }} disabled />
-        <Pill title="Facebook" variant="secondary" style={{ flex: 1 }} disabled />
-      </View>
+      <GoogleButton />
 
       <View style={{ marginTop: 'auto', paddingTop: 24, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4 }}>
         <Text style={[type.subhead, { color: colors.secondary }]}>Zaten hesabın var mı?</Text>

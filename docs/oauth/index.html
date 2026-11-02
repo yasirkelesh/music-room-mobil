@@ -1,0 +1,40 @@
+<!doctype html>
+<!-- Google redirects here after sign-in (a Web OAuth client accepts only https redirects). The page hands
+     the code back to the app: the address to return to travels in `state`, written by src/lib/social.ts. -->
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Music Room</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f2f2f7; color: #000; font: 17px -apple-system, system-ui, sans-serif; }
+  main { text-align: center; padding: 24px; }
+  a { display: inline-block; margin-top: 16px; padding: 14px 28px; border-radius: 26px; background: #000; color: #fff; text-decoration: none; font-weight: 600; }
+  @media (prefers-color-scheme: dark) { body { background: #000; color: #fff; } a { background: #fff; color: #000; } }
+</style>
+</head>
+<body>
+<main>
+  <p id="msg">Uygulamaya dönülüyor…</p>
+  <a id="go" href="#" hidden>Uygulamaya dön</a>
+</main>
+<script>
+  (function () {
+    var q = new URLSearchParams(location.search);
+    var target = null;
+    try {
+      var s = q.get('state').replace(/-/g, '+').replace(/_/g, '/');
+      var r = JSON.parse(atob(s + '==='.slice((s.length + 3) % 4))).r;
+      // only ever back into the app, never to an arbitrary site
+      if (/^(musicroom|exps?):\/\//.test(r)) target = r;
+    } catch (e) { /* no or unreadable state */ }
+    if (!target) { document.getElementById('msg').textContent = 'Geçersiz bağlantı.'; return; }
+    var url = target + (target.indexOf('?') < 0 ? '?' : '&') + q.toString();
+    var a = document.getElementById('go');
+    a.href = url;
+    a.hidden = false;
+    location.replace(url);
+  })();
+</script>
+</body>
+</html>

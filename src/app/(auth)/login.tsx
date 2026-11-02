@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { describeError, isStatus } from '@/api/errors';
+import { GoogleButton } from '@/components/GoogleButton';
 import { Divider, FieldRow, FormError, Group, Pill, Screen, Sub, TextButton, Title, TopBar } from '@/components/ui';
 import { useAuth } from '@/state/auth';
 import { colors, type } from '@/theme';
@@ -59,10 +60,7 @@ export default function Login() {
 
       <Pill title={busy ? 'Giriş yapılıyor…' : 'Giriş yap'} disabled={busy || !email.includes('@') || !password} style={{ marginTop: 8 }} onPress={submit} />
       <Divider label="ya da" />
-      <View style={{ gap: 10 }}>
-        <Pill title="Google ile devam et" variant="secondary" disabled />
-        <Pill title="Facebook ile devam et" variant="secondary" disabled />
-      </View>
+      <GoogleButton />
 
       <View style={{ marginTop: 'auto', paddingTop: 24, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4 }}>
         <Text style={[type.subhead, { color: colors.secondary }]}>Hesabın yok mu?</Text>

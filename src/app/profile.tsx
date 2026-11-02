@@ -1,12 +1,15 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback } from 'react';
-import { api } from '@/api/client';
+import { useCallback, useState } from 'react';
+import { api, ApiError } from '@/api/client';
+import { describeError } from '@/api/errors';
 import { FieldVisibility } from '@/api/types';
+import { showActions } from '@/components/ActionSheet';
 import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
-import { Group, Pill, Row, Screen, SectionHeader, Tag, TextButton, TopBar } from '@/components/ui';
+import { FormError, Group, Pill, Row, Screen, SectionHeader, Tag, TextButton, TopBar } from '@/components/ui';
 import { personOf } from '@/lib/people';
+import { googleCode, googleReady } from '@/lib/social';
 import { useAsync } from '@/lib/useAsync';
 import { useAuth } from '@/state/auth';
 import { colors, type } from '@/theme';
@@ -35,6 +38,30 @@ export default function Profile() {
   const lists = useAsync(() => api.playlists.list('mine', { pageSize: 100 }));
   const events = useAsync(() => api.events.list('mine', { pageSize: 100 }));
   const links = useAsync(() => api.auth.socialLinks());
+  const google = links.data?.find((l) => l.provider === 'google') ?? null;
+  const [linking, setLinking] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+
+  // Linking proves the Google account is the caller's the same way signing in does: a fresh code.
+  const linkGoogle = async () => {
+    setLinking(true);
+    setLinkError(null);
+    try {
+      const code = await googleCode();
+      if (code) { await api.auth.linkSocial(code); links.reload(); }
+    } catch (e) {
+      setLinkError(e instanceof ApiError ? describeError(e) : 'Google hesabı bağlanamadı. Tekrar dene.');
+    } finally {
+      setLinking(false);
+    }
+  };
+  const unlinkGoogle = () => showActions({ title: 'Google', subtitle: google?.email ?? undefined }, [{
+    label: 'Bağlantıyı kaldır', icon: 'close', destructive: true,
+    run: async () => {
+      setLinkError(null);
+      try { await api.auth.unlinkSocial('google'); links.reload(); } catch (e) { setLinkError(describeError(e)); }
+    },
+  }]);
 
   // Coming back from the edit screen should show the new values.
   useFocusEffect(useCallback(() => { reloadMe().catch(() => {}); }, [reloadMe]));
@@ -86,17 +113,14 @@ export default function Profile() {
         );
       })}
 
-      {(links.data?.length ?? 0) > 0 && (
-        <>
-          <SectionHeader>Bağlı hesaplar</SectionHeader>
-          <Group>
-            {links.data!.map((l) => (
-              <Row key={l.provider} title={l.provider[0].toUpperCase() + l.provider.slice(1)} height={52}
-                right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Icon name="check" size={14} color={colors.secondary} strokeWidth={2} /><Text style={[type.subhead, { color: colors.secondary }]}>Bağlı</Text></View>} />
-            ))}
-          </Group>
-        </>
-      )}
+      <SectionHeader>Bağlı hesaplar</SectionHeader>
+      <Group>
+        <Row title="Google" height={52} subtitle={google?.email ?? undefined}
+          value={linking ? 'Bekleniyor…' : google ? 'Bağlı' : googleReady ? 'Bağla' : 'Ayarlanmadı'}
+          left={<Icon name={google ? 'check' : 'globe'} size={16} color={colors.secondary} strokeWidth={2} />}
+          onPress={linking || (!google && !googleReady) ? undefined : google ? unlinkGoogle : linkGoogle} />
+      </Group>
+      <FormError message={linkError} />
 
       <Pill title="Çıkış yap" variant="secondary" style={{ marginTop: 32, borderRadius: 14 }} onPress={async () => { await signOut(); router.replace('/welcome'); }} />
     </Screen>

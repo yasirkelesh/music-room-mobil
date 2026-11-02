@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { api, ApiError, refreshSession, session } from '@/api/client';
 import type { OwnProfile, TokenPair } from '@/api/types';
 import { forgetDevice } from '@/lib/device';
+import { googleCode } from '@/lib/social';
 
 const KEY = 'musicroom.refreshToken';
 const store = {
@@ -22,6 +23,8 @@ type Auth = {
   userId: string | null;
   /** Resolves with the freshly loaded profile (null if it could not be read). */
   signIn: (email: string, password: string) => Promise<OwnProfile | null>;
+  /** Google's consent page, then the API's tokens. `undefined` when the user closed the page. An account is created on first use. */
+  signInWithGoogle: () => Promise<OwnProfile | null | undefined>;
   signOut: () => Promise<void>;
   reloadMe: () => Promise<OwnProfile>;
 };
@@ -87,6 +90,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return finish(await api.auth.signIn(email.trim(), password));
   }, [finish]);
 
+  const signInWithGoogle = useCallback(async () => {
+    const code = await googleCode();
+    if (!code) return undefined;
+    return finish(await api.auth.signInSocial(code));
+  }, [finish]);
+
   const signOut = useCallback(async () => {
     try { await api.auth.signOut(); } catch (e) { if (!(e instanceof ApiError)) throw e; }
     session.set(null);
@@ -97,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('signedOut');
   }, []);
 
-  const value = useMemo<Auth>(() => ({ status, me, userId, signIn, signOut, reloadMe }), [status, me, userId, signIn, signOut, reloadMe]);
+  const value = useMemo<Auth>(() => ({ status, me, userId, signIn, signInWithGoogle, signOut, reloadMe }), [status, me, userId, signIn, signInWithGoogle, signOut, reloadMe]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

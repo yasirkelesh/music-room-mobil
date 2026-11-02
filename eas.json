@@ -10,17 +10,22 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://music-room-api-regw.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://music-room-api-regw.onrender.com",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "103632820331-r4jr7ebf4fenb5oj3l19t3prdkpmljdn.apps.googleusercontent.com"
       }
     },
     "production": {
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://music-room-api-regw.onrender.com"
+        "EXPO_PUBLIC_API_URL": "https://music-room-api-regw.onrender.com",
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "103632820331-r4jr7ebf4fenb5oj3l19t3prdkpmljdn.apps.googleusercontent.com"
       }
     },
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_GOOGLE_CLIENT_ID": "103632820331-r4jr7ebf4fenb5oj3l19t3prdkpmljdn.apps.googleusercontent.com"
+      }
     }
   }
 }

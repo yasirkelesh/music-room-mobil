@@ -24,6 +24,10 @@ const byCode: Record<string, string> = {
   'PRESENCE_PROOF.REQUIRED': 'Konum/saat kısıtı için bir doğrulama yöntemi seç.',
   'GEOFENCE.REQUIRED': 'Mekân konumu ve yarıçapı gerekli.',
   'GENRES.TOO_MANY': 'Çok fazla tür seçtin.',
+  'PROVIDER.UNKNOWN': 'Google ile giriş sunucuda henüz ayarlanmamış.',
+  'SOCIAL.EMAIL_UNVERIFIED': 'Google bu e-posta adresini doğrulamamış.',
+  'SOCIAL.ALREADY_LINKED': 'Bu Google hesabı zaten bir hesaba bağlı.',
+  'SOCIAL.LAST_SIGN_IN_METHOD': 'Bu tek giriş yolun. Kaldırmadan önce bir şifre belirle.',
   'INTERNAL.UNEXPECTED': 'Sunucuda beklenmeyen bir hata oluştu.',
 };
 
