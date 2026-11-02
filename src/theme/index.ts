@@ -17,6 +17,7 @@ export const colors = {
   graphite: '#3A3A3C',
   black: '#000000',
   white: '#FFFFFF',
+  danger: '#D70015', // iOS system red — form errors and destructive actions
   vinyl: '#1A1A19',
   vinylGroove: '#3A3A3C',
   // dark (party) surfaces
@@ -60,6 +61,12 @@ export const type = {
   caption: { fontSize: 12, fontWeight: '400' as const },
   numeric: { fontVariant: ['tabular-nums' as const] },
 };
+
+/**
+ * Base for every TextInput. Android pads inputs top and bottom and adds font padding; inside a fixed
+ * height (and with a larger system font) that clipped the top of the text — "Lıste adı" for "Liste adı".
+ */
+export const field = { paddingVertical: 0, includeFontPadding: false, textAlignVertical: 'center' as const };
 
 /** Space the floating mini player + tab bar take at the bottom of each tab screen. */
 export const TAB_INSET = 170;

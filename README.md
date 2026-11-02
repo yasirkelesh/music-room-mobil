@@ -17,6 +17,21 @@ npm run typecheck         # tsc --noEmit
 npx expo-doctor           # bağımlılık / config kontrolü
 ```
 
+## Backend
+
+API (`MusicRoom.WebAPI`, bkz. `music-room-openapi.json`) varsayılan olarak `http://localhost:8085` adresinde aranır
+(Android emülatöründe `10.0.2.2:8085`). Gerçek cihazda Mac'in LAN adresini ver:
+
+```bash
+echo 'EXPO_PUBLIC_API_URL=http://192.168.1.20:8085' > .env
+```
+
+- Oturum: access token bellekte, refresh token `expo-secure-store`'da; süresi dolunca otomatik döner (401 → bir kez yenile).
+- Her yazma isteği `X-Client-Platform/Device/App-Version` başlıklarını taşır (API bunları zorunlu tutar).
+- E-posta doğrulama / şifre sıfırlama: postadaki kod `verify` / `reset` ekranına yapıştırılır. API'de
+  `VERIFICATION_LINK_BASE_URL=musicroom://verify` (ve reset için `musicroom://reset`) verilirse bağlantı uygulamayı doğrudan açar.
+- Müzik kataloğu için API'de `YOUTUBE_API_KEY` tanımlı olmalı; yoksa arama/başlıklar 503 döner.
+
 ## Yapı
 
 ```
@@ -36,7 +51,8 @@ src/
   components/             # Cover, Disc, Motion (Spin/Orbit), Jukebox, ui, Icon, MiniPlayer…
   data/mock.ts            # sahte veri (API gelene kadar)
   state/player.tsx        # sahte oynatıcı durumu
-  api/client.ts           # NestJS için ince istemci (EXPO_PUBLIC_API_URL)
+  api/                    # MusicRoom.WebAPI istemcisi: client.ts (tipli REST + token yenileme), types.ts, errors.ts, realtime.ts (SignalR)
+  lib/                    # useAsync, usePlaylist (canlı liste), parça meta önbelleği, arama
   theme/                  # renk, tipografi, boşluk token'ları
 ```
 

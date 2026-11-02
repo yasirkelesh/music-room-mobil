@@ -2,13 +2,30 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 import { router } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { api } from '@/api/client';
+import { describeError } from '@/api/errors';
 import { Icon } from '@/components/Icon';
-import { FieldRow, Group, Pill, Screen, Sub, TextButton, Title, TopBar } from '@/components/ui';
+import { FieldRow, FormError, Group, Pill, Screen, Sub, TextButton, Title, TopBar } from '@/components/ui';
 import { colors, type } from '@/theme';
 
 export default function Forgot() {
-  const [email, setEmail] = useState('yasir@ornek.com');
+  const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.auth.requestPasswordReset(email.trim());
+      setSent(true);
+    } catch (e) {
+      setError(describeError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <Screen scroll>
@@ -17,7 +34,7 @@ export default function Forgot() {
       <Sub>E-posta adresini yaz, yeni şifre belirlemen için bir bağlantı gönderelim.</Sub>
 
       <Group style={{ marginTop: 28 }}>
-        <FieldRow label="E-posta" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" textContentType="emailAddress" />
+        <FieldRow label="E-posta" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} textContentType="emailAddress" />
       </Group>
 
       {sent && (
@@ -26,14 +43,15 @@ export default function Forgot() {
             <Icon name="check" size={14} color={colors.white} strokeWidth={2.4} />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[type.callout, { fontWeight: '600' }]}>Bağlantı gönderildi</Text>
-            <Text style={[type.subhead, { color: colors.secondary, lineHeight: 20 }]}>Gelen kutunu kontrol et. Bağlantı 30 dakika geçerli.</Text>
+            <Text style={[type.callout, { fontWeight: '600' }]}>İstek alındı</Text>
+            <Text style={[type.subhead, { color: colors.secondary, lineHeight: 20 }]}>Bu adres kayıtlıysa bir bağlantı gönderdik. Bağlantı 1 saat geçerli.</Text>
           </View>
         </Animated.View>
       )}
 
-      {/* TODO: api.forgotPassword(email) */}
-      <Pill title={sent ? 'Tekrar gönder' : 'Sıfırlama bağlantısı gönder'} style={{ marginTop: 24 }} onPress={() => setSent(true)} />
+      <FormError message={error} />
+      <Pill title={busy ? 'Gönderiliyor…' : sent ? 'Tekrar gönder' : 'Sıfırlama bağlantısı gönder'} disabled={busy || !email.includes('@')} style={{ marginTop: 24 }} onPress={submit} />
+      {sent && <View style={{ alignItems: 'center', marginTop: 4 }}><TextButton title="Kodum var" onPress={() => router.push('/reset')} /></View>}
 
       <View style={{ marginTop: 'auto', paddingTop: 24, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 4 }}>
         <Text style={[type.subhead, { color: colors.secondary }]}>Hatırladın mı?</Text>

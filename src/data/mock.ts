@@ -2,6 +2,9 @@
 
 export type CoverKey = 'night' | 'moons' | 'summer' | 'laundry' | 'floppy' | 'slowmo' | 'dialup';
 
+/** Stand-in artwork by key, or a real thumbnail by URL. */
+export type CoverSource = CoverKey | { uri: string };
+
 export type CoverArt = {
   kind: 'sun' | 'orbs' | 'stripes' | 'grid' | 'split' | 'waves' | 'rings';
   base: string; // dominant colour
@@ -21,7 +24,7 @@ export const covers: Record<CoverKey, CoverArt> = {
   dialup: { kind: 'rings', base: '#161616', ink: '#B7E34C', onBase: '#FFFFFF' },
 };
 
-export type Track = { id: string; title: string; artist: string; cover: CoverKey; duration: number };
+export type Track = { id: string; title: string; artist: string; cover: CoverSource; duration: number };
 
 export const tracks: Record<string, Track> = {
   night: { id: 'night', title: 'Night Drive', artist: 'Tape Ghost', cover: 'night', duration: 238 },

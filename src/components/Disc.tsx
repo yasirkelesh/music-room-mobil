@@ -1,12 +1,12 @@
 import { View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
-import { CoverKey } from '@/data/mock';
+import { CoverSource } from '@/data/mock';
 import { colors } from '@/theme';
 import { Cover } from './Cover';
 import { Spin } from './Motion';
 
 type Props = {
-  cover: CoverKey;
+  cover: CoverSource;
   size: number;
   spinning?: boolean;
   /** 'silver' = chrome disc with grooves (default), 'vinyl' = black record, 'picture' = cover printed on the whole disc */

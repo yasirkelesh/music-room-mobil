@@ -1,0 +1,5434 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "MusicRoom.WebAPI | v1",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8085/"
+    }
+  ],
+  "paths": {
+    "/oauth2/authorize": {
+      "get": {
+        "tags": [
+          "OAuth2Endpoints"
+        ],
+        "summary": "Authorization endpoint — authorization code flow with PKCE",
+        "description": "Takes `response_type=code`, `client_id`, `redirect_uri`, `scope`, `state`, `nonce`, `code_challenge` and `code_challenge_method=S256`, and answers 302 to the registered redirect URI with a single-use code that expires in 60 seconds. It requires a bearer access token: this provider has no login page, so the account signs in through the credential endpoints first — SPEC-044, the owner's answer A. An unknown client or an unregistered redirect URI answers 400 without redirecting, because sending an error to a URI nobody registered is the open redirect the registry exists to prevent.",
+        "operationId": "GetOAuth2Authorize",
+        "responses": {
+          "302": {
+            "description": "Found"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/oauth2/token": {
+      "post": {
+        "tags": [
+          "OAuth2TokenEndpoint"
+        ],
+        "summary": "Token endpoint — code exchange and refresh",
+        "description": "Form-encoded, as RFC 6749 requires. With `grant_type=authorization_code` it takes `code`, `code_verifier`, `client_id` and `redirect_uri`, spends the code once, and answers an access token, an ID token and a refresh token. With `grant_type=refresh_token` it takes `refresh_token` and rotates the session, which revokes the whole family if a spent token is presented. There is no `grant_type=password`: OAuth 2.1 removes it. Errors are RFC 6749 §5.2 objects, not ProblemDetails.",
+        "operationId": "PostOAuth2Token",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenGrantResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/oauth2/userinfo": {
+      "get": {
+        "tags": [
+          "OAuth2UserInfoEndpoints"
+        ],
+        "summary": "UserInfo endpoint",
+        "description": "The claims the session's grant allows — OpenID Connect Core 1.0 §5.3. `sub` always; `email` and `email_verified` when the `email` scope was granted; `name` when `profile` was. A session opened by the credential endpoints granted no scope and receives all of them, because the caller is the account's own client. The subject comes from the validated token and never from a parameter.",
+        "operationId": "GetOAuth2UserInfo",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserInfoResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/oauth2/revoke": {
+      "post": {
+        "tags": [
+          "OAuth2UserInfoEndpoints"
+        ],
+        "summary": "Revocation endpoint",
+        "description": "Form-encoded `token`, with an optional `token_type_hint` — RFC 7009. Revoking a refresh token ends its whole session: every token descended from the same sign-in stops rotating. An unknown or already-revoked token answers 200 as well, so the endpoint is not an oracle for which tokens exist. `token_type_hint=access_token` answers 400 `unsupported_token_type`, because a short-lived signed access token is not revocable here and a 200 would say otherwise.",
+        "operationId": "PostOAuth2Revoke",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OAuthErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/.well-known/openid-configuration": {
+      "get": {
+        "tags": [
+          "OpenIdMetadataEndpoints"
+        ],
+        "summary": "OpenID Connect discovery document",
+        "description": "What this provider offers. Only endpoints that answer are listed: a client reading this document may assume every URL in it exists.",
+        "operationId": "GetOpenIdConfiguration",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiscoveryDocument"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/.well-known/jwks.json": {
+      "get": {
+        "tags": [
+          "OpenIdMetadataEndpoints"
+        ],
+        "summary": "Public signing keys",
+        "description": "The public half of every key a token from this API may carry: the current one, and the outgoing one during a rotation overlap. Private material never appears here.",
+        "operationId": "GetJsonWebKeySet",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "MusicRoom.WebAPI"
+        ],
+        "summary": "Liveness",
+        "description": "Returns 200 while the process is serving. Touches no dependency.",
+        "operationId": "GetHealth",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "HealthEndpoints"
+        ],
+        "summary": "Readiness",
+        "description": "Returns 200 when every dependency is reachable, 503 when one is not.",
+        "operationId": "GetHealthReady",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/password": {
+      "post": {
+        "tags": [
+          "AccountPasswordEndpoints"
+        ],
+        "summary": "Change the caller's password",
+        "description": "Takes the current password as proof and replaces it. Every other session the account holds is revoked; the caller's own stays alive, because it is the session that just proved it holds the new credential. A wrong current password is 422, not 401: the token is fine.",
+        "operationId": "PostPasswordChange",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "429": {
+            "description": "Too Many Requests"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/control-grants": {
+      "get": {
+        "tags": [
+          "DeviceControlEndpoints"
+        ],
+        "summary": "List the devices the caller has been given control of",
+        "description": "The delegation seen from the other side: what somebody else handed me, not what I handed out.",
+        "operationId": "GetControlGrants",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ControlGrantSummary"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/registrations": {
+      "post": {
+        "tags": [
+          "AuthEndpoints"
+        ],
+        "summary": "Register an account",
+        "description": "Accepts the registration and answers 202 whether or not the address is already registered. A 409 here would tell an anonymous caller who holds an account; the mailbox tells the real user what happened.",
+        "operationId": "PostAuthRegistration",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "400": {
+            "description": "Bad Request"
+          },
+          "202": {
+            "description": "Accepted"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/email-verifications": {
+      "post": {
+        "tags": [
+          "AuthEndpoints"
+        ],
+        "summary": "Verify an email address",
+        "description": "Spends the token from the verification mail exactly once and marks the address verified. The description says nothing about what separates 400 from 410 for a given token, because that is the caller's business only when they hold it.",
+        "operationId": "PostAuthEmailVerification",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmailVerificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "410": {
+            "description": "Gone"
+          },
+          "429": {
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/verification-requests": {
+      "post": {
+        "tags": [
+          "AuthEndpoints"
+        ],
+        "summary": "Ask for another email verification link",
+        "description": "Answers 202 for any address that is a valid address. Whether a mail follows is not stated and cannot be inferred from the response: a distinct answer here would tell an anonymous caller which addresses hold a registered or confirmed account.",
+        "operationId": "PostAuthVerificationRequest",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "400": {
+            "description": "Bad Request"
+          },
+          "202": {
+            "description": "Accepted"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sessions": {
+      "post": {
+        "tags": [
+          "AuthEndpoints"
+        ],
+        "summary": "Sign in",
+        "description": "Exchanges an address and a password for a token pair. Every failure — unknown address, wrong password, unverified account — answers the same bodiless 401, and the unknown-address path spends the same hashing work as the others, so the response cannot be timed either.",
+        "operationId": "PostAuthSession",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "400": {
+            "description": "Bad Request"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPairResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "429": {
+            "description": "Too Many Requests"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "SessionEndpoints"
+        ],
+        "summary": "List your own sessions",
+        "description": "Lists the caller's live sessions, newest first, each with the platform, device and app version that started it so a session can be recognised. No token and no digest is returned: the list exists to be read, not to be replayed.",
+        "operationId": "GetAuthSessions",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/tokens": {
+      "post": {
+        "tags": [
+          "AuthEndpoints"
+        ],
+        "summary": "Rotate a session",
+        "description": "Spends a refresh token exactly once and returns a rotated pair. Presenting an already-rotated token revokes the whole family and answers 401: that is the session-theft detector, and it answers exactly as an unknown or expired token does.",
+        "operationId": "PostAuthToken",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenRotationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "400": {
+            "description": "Bad Request"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPairResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "429": {
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/password-reset-requests": {
+      "post": {
+        "tags": [
+          "PasswordResetEndpoints"
+        ],
+        "summary": "Ask for a password reset link",
+        "description": "Answers 202 for any address that is a valid address. Whether a mail follows is not stated and cannot be inferred from the response: a distinct answer here would tell an anonymous caller which addresses hold an account.",
+        "operationId": "PostAuthPasswordResetRequest",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "400": {
+            "description": "Bad Request"
+          },
+          "202": {
+            "description": "Accepted"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/password-resets": {
+      "post": {
+        "tags": [
+          "PasswordResetEndpoints"
+        ],
+        "summary": "Replace a forgotten password",
+        "description": "Spends the token from the reset mail exactly once, replaces the password and revokes every refresh token the account holds, so a password change ends every session opened with the old one. An access token issued moments earlier stays valid until it expires; that window is the 15 minutes the session design fixes. A 422 describes the new password only, never the token.",
+        "operationId": "PostAuthPasswordReset",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetSubmission"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "410": {
+            "description": "Gone"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sessions/current": {
+      "delete": {
+        "tags": [
+          "SessionEndpoints"
+        ],
+        "summary": "Sign out",
+        "description": "Revokes the refresh-token family this access token belongs to, named by its sid claim, so no token from this session can be rotated again. The access token already issued stays valid until it expires — at most 15 minutes and 30 seconds — which is the accepted window in the threat register rather than an oversight.",
+        "operationId": "DeleteAuthCurrentSession",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sessions/{sessionId}": {
+      "delete": {
+        "tags": [
+          "SessionEndpoints"
+        ],
+        "summary": "End one of your sessions",
+        "description": "Revokes one named session of the calling account. An unknown id, one already ended and one belonging to another account all answer 404, because a distinct answer would confirm that another account's session exists.",
+        "operationId": "DeleteAuthSession",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/sessions/social": {
+      "post": {
+        "tags": [
+          "SocialAuthEndpoints"
+        ],
+        "summary": "Sign in with a provider",
+        "description": "Exchanges an authorization code for a token pair. The code is exchanged by this API with the client secret, never by the client — ADR-0008. An account is created the first time an identity signs in, and it has no password until the owner sets one through the reset flow.",
+        "operationId": "PostAuthSocialSession",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SocialSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "400": {
+            "description": "Bad Request"
+          },
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPairResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/social-links": {
+      "get": {
+        "tags": [
+          "SocialAuthEndpoints"
+        ],
+        "summary": "List linked providers",
+        "description": "The caller's own links, oldest first. No route reads anybody else's.",
+        "operationId": "GetAuthSocialLinks",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SocialLinkResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "SocialAuthEndpoints"
+        ],
+        "summary": "Link a provider to this account",
+        "description": "The same acquisition as signing in, deliberately: linking an identity the caller cannot prove they hold would let anyone attach their provider account to somebody else's.",
+        "operationId": "PostAuthSocialLink",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SocialLinkRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/social-links/{provider}": {
+      "delete": {
+        "tags": [
+          "SocialAuthEndpoints"
+        ],
+        "summary": "Unlink a provider",
+        "description": "Refused with 409 when it is the account's only way in: an account with no password and one link would become one nobody can reach, including its owner.",
+        "operationId": "DeleteAuthSocialLink",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "409": {
+            "description": "Conflict"
+          }
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "tags": [
+          "ProfileEndpoints"
+        ],
+        "summary": "Read your own profile",
+        "description": "Returns every profile field with the visibility tier that governs it, plus the caller's music preferences. The owner is the one reader who sees every tier; what another user sees is projected per field, which is a different endpoint.",
+        "operationId": "GetMe",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnProfileResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/me/profile": {
+      "patch": {
+        "tags": [
+          "ProfileEndpoints"
+        ],
+        "summary": "Update your own profile",
+        "description": "Updates any subset of the profile. Each field carries its value and its visibility tier in the same object, so a field cannot exist without a tier — a value with no tier is 422, never a silent default to public. An absent field is left untouched; sending a null value with a tier clears it.",
+        "operationId": "PatchMeProfile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/music-preferences": {
+      "put": {
+        "tags": [
+          "ProfileEndpoints"
+        ],
+        "summary": "Replace your music preferences",
+        "description": "Replaces the whole preference set, genres and artists. Preferences are private to their owner and carry no visibility tier of their own. Both lists are bounded: an unbounded array behind an authenticated endpoint is unrestricted resource consumption.",
+        "operationId": "PutMeMusicPreferences",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MusicPreferencesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/friends": {
+      "get": {
+        "tags": [
+          "FriendEndpoints"
+        ],
+        "summary": "List your friends",
+        "description": "Lists the caller's friends, newest first, paged. A friendship is symmetric: both parties see each other here, and neither can see it without the other.",
+        "operationId": "GetMeFriends",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FriendResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/me/friends/{userId}": {
+      "delete": {
+        "tags": [
+          "FriendEndpoints"
+        ],
+        "summary": "Remove a friend",
+        "description": "Ends the friendship for both sides at once, and clears the request rows between the pair so they may befriend again. Answers 404 when there is no friendship to end.",
+        "operationId": "DeleteMeFriend",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/me/friend-requests": {
+      "get": {
+        "tags": [
+          "FriendEndpoints"
+        ],
+        "summary": "List your pending friend requests",
+        "description": "Lists pending requests in one direction: incoming are the ones addressed to the caller, outgoing the ones the caller sent. The direction is required, because the two screens that show these lists show one each.",
+        "operationId": "GetMeFriendRequests",
+        "parameters": [
+          {
+            "name": "direction",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "incoming"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FriendRequestResponse"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "FriendEndpoints"
+        ],
+        "summary": "Ask somebody to be friends",
+        "description": "Creates a pending request. Answers 409 when the pair are already friends, when a request is already pending in either direction, or when the caller asks themselves; 404 when no such account exists. A crossing request is not auto-accepted: nobody becomes a friend without accepting.",
+        "operationId": "PostMeFriendRequest",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FriendRequestCreation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/me/friend-requests/{requestId}": {
+      "patch": {
+        "tags": [
+          "FriendEndpoints"
+        ],
+        "summary": "Accept or decline a friend request",
+        "description": "Only the recipient may answer. Accepting creates the friendship in the same transaction that marks the request accepted, so twenty simultaneous accepts produce one friendship. An unknown request, one already answered and one addressed to somebody else all answer 404.",
+        "operationId": "PatchMeFriendRequest",
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FriendRequestDecision"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "FriendEndpoints"
+        ],
+        "summary": "Withdraw a friend request you sent",
+        "description": "Only the sender may withdraw; a recipient declines instead, which is a different verb and a different row state. The row is deleted rather than marked, so the pair may try again.",
+        "operationId": "DeleteMeFriendRequest",
+        "parameters": [
+          {
+            "name": "requestId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/users": {
+      "get": {
+        "tags": [
+          "UserEndpoints"
+        ],
+        "summary": "Search accounts by display name",
+        "description": "Matches a case-insensitive prefix of the display name, paged with a capped size. The display name is the only field searched: matching a profile field would let a stranger confirm a friends-only value by probing for it. A blank query returns nothing rather than everybody.",
+        "operationId": "GetUsers",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": ""
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserSearchResult"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{userId}": {
+      "get": {
+        "tags": [
+          "UserEndpoints"
+        ],
+        "summary": "Read one account's profile",
+        "description": "Returns the profile projected per field against the caller's relationship to its owner: self, friend or stranger. A field the caller may not see is absent from the body and is never read from the database, so a caller cannot tell a hidden field from an empty one. An account that does not exist answers the same sparse shape as one whose owner hid everything, so asking does not confirm existence.",
+        "operationId": "GetUser",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisibleProfile"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/playlists": {
+      "post": {
+        "tags": [
+          "PlaylistEndpoints"
+        ],
+        "summary": "Create a playlist",
+        "description": "The caller owns it. A playlist may be Everyone or InvitedOnly; LocationAndTimeRestricted is 422, because that licence belongs to an event and nothing checks a geofence on a playlist.",
+        "operationId": "PostPlaylist",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaylistCreation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "PlaylistEndpoints"
+        ],
+        "summary": "List playlists",
+        "description": "One scope at a time: mine, shared with me, or public. Paged with a capped size. A private playlist the caller is not named on never appears in any scope.",
+        "operationId": "GetPlaylists",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "mine"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlaylistSummary"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/playlists/{playlistId}": {
+      "get": {
+        "tags": [
+          "PlaylistEndpoints"
+        ],
+        "summary": "Read one playlist",
+        "description": "Returns the playlist with an ETag the client sends back as If-Match when it edits. A playlist the caller may not see answers 404, never 403, because 403 would confirm it exists.",
+        "operationId": "GetPlaylist",
+        "parameters": [
+          {
+            "name": "playlistId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaylistResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "PlaylistEndpoints"
+        ],
+        "summary": "Change a playlist's metadata",
+        "description": "Requires If-Match carrying the ETag the client last read. A stale or absent token answers 412 and changes nothing: two clients editing at once is the failure this guard exists for.",
+        "operationId": "PatchPlaylist",
+        "parameters": [
+          {
+            "name": "playlistId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaylistMetadata"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "412": {
+            "description": "Precondition Failed"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "PlaylistEndpoints"
+        ],
+        "summary": "Delete a playlist",
+        "description": "A soft delete, owner only: the row is stamped deleted and disappears from every read. Its audit trail keeps pointing at something that exists.",
+        "operationId": "DeletePlaylist",
+        "parameters": [
+          {
+            "name": "playlistId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/playlists/{playlistId}/licence": {
+      "put": {
+        "tags": [
+          "PlaylistEndpoints"
+        ],
+        "summary": "Set a playlist's visibility and licence",
+        "description": "Owner only: a collaborator who may edit the contents does not decide who may see them.",
+        "operationId": "PutPlaylistLicence",
+        "parameters": [
+          {
+            "name": "playlistId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaylistLicenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/playlists/{playlistId}/collaborators": {
+      "get": {
+        "tags": [
+          "PlaylistCollaboratorEndpoints"
+        ],
+        "summary": "List who is named on a playlist",
+        "description": "Anybody who may see the playlist may see who is named on it. A caller who may not see the playlist answers 404, not an empty list, because an empty list would confirm it exists.",
+        "operationId": "GetPlaylistCollaborators",
+        "parameters": [
+          {
+            "name": "playlistId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CollaboratorSummary"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "PlaylistCollaboratorEndpoints"
+        ],
+        "summary": "Name somebody on a playlist",
+        "description": "Owner only. 409 when they are already named, and when the owner names themselves — they already hold every right a collaborator grant could give.",
+        "operationId": "PostPlaylistCollaborator",
+        "parameters": [
+          {
+            "name": "playlistId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CollaboratorCreation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          }
+        }
+      }
+    },
+    "/api/v1/playlists/{playlistId}/collaborators/{userId}": {
+      "delete": {
+        "tags": [
+          "PlaylistCollaboratorEndpoints"
+        ],
+        "summary": "Remove somebody from a playlist",
+        "description": "Owner only. 404 when there is no such grant on a playlist this caller owns.",
+        "operationId": "DeletePlaylistCollaborator",
+        "parameters": [
+          {
+            "name": "playlistId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/playlists/{playlistId}/tracks": {
+      "get": {
+        "tags": [
+          "PlaylistTrackEndpoints"
+        ],
+        "summary": "List a playlist's tracks in order",
+        "description": "Anybody who may see the playlist may see its tracks. The response carries the ETag the client sends back as If-Match when it adds, moves or removes one. A caller who may not see the playlist answers 404, not an empty list, because an empty list would confirm it exists.",
+        "operationId": "GetPlaylistTracks",
+        "parameters": [
+          {
+            "name": "playlistId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlaylistTrackSummary"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "PlaylistTrackEndpoints"
+        ],
+        "summary": "Add a track to a playlist",
+        "description": "Requires If-Match carrying the ETag of the track list the client last read. Appends by default; atHead or afterTrackId names a position. A playlist already holding its maximum number of tracks answers 409. The same video may appear twice: a playlist that plays a track twice is a playlist, not an error.",
+        "operationId": "PostPlaylistTrack",
+        "parameters": [
+          {
+            "name": "playlistId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackAddition"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "412": {
+            "description": "Precondition Failed"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/playlists/{playlistId}/tracks/{playlistTrackId}": {
+      "patch": {
+        "tags": [
+          "PlaylistTrackEndpoints"
+        ],
+        "summary": "Move a track within a playlist",
+        "description": "Exactly one of afterTrackId or beforeTrackId. Requires If-Match: when two clients reorder the same list at once exactly one is applied and the other is told 412 and reloads, which is the whole point of versioning a collection.",
+        "operationId": "PatchPlaylistTrack",
+        "parameters": [
+          {
+            "name": "playlistId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "playlistTrackId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The track.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackDestination"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "412": {
+            "description": "Precondition Failed"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "PlaylistTrackEndpoints"
+        ],
+        "summary": "Remove a track from a playlist",
+        "description": "Requires If-Match. Removing leaves the remaining order untouched: positions are sparse, so the hole costs nothing and no other row is rewritten.",
+        "operationId": "DeletePlaylistTrack",
+        "parameters": [
+          {
+            "name": "playlistId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "playlistTrackId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "412": {
+            "description": "Precondition Failed"
+          }
+        }
+      }
+    },
+    "/api/v1/events": {
+      "post": {
+        "tags": [
+          "EventEndpoints"
+        ],
+        "summary": "Create an event",
+        "description": "The caller owns it. The window is two UTC instants and the end must be after the start. A LocationAndTimeRestricted licence must name the presence proof it requires, and a geofence proof must carry a centre and a radius, or the answer is 422.",
+        "operationId": "PostEvent",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventCreation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "EventEndpoints"
+        ],
+        "summary": "List events",
+        "description": "One scope at a time: mine, the ones I was invited to, or public. Paged with a capped size. A private event the caller was not invited to appears in none of them.",
+        "operationId": "GetEvents",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "default": "mine"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EventSummary"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/events/{eventId}": {
+      "get": {
+        "tags": [
+          "EventEndpoints"
+        ],
+        "summary": "Read one event",
+        "description": "Returns the event with an ETag the client sends back as If-Match when it edits. An event the caller may not see answers 404, never 403, because 403 would confirm it exists.",
+        "operationId": "GetEvent",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "EventEndpoints"
+        ],
+        "summary": "Change an event's metadata",
+        "description": "Owner only, and requires If-Match carrying the ETag the client last read. A stale or absent token answers 412 and changes nothing.",
+        "operationId": "PatchEvent",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventMetadataRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "412": {
+            "description": "Precondition Failed"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "EventEndpoints"
+        ],
+        "summary": "Delete an event",
+        "description": "A soft delete, owner only: the row is stamped deleted and disappears from every read, so its audit trail keeps pointing at something that exists.",
+        "operationId": "DeleteEvent",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/events/{eventId}/licence": {
+      "put": {
+        "tags": [
+          "EventLicenceEndpoints"
+        ],
+        "summary": "Set an event's visibility, licence and presence policy",
+        "description": "Owner only. The same rules creation applies: an event cannot become a LocationAndTimeRestricted event with nothing configured to check.",
+        "operationId": "PutEventLicence",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventLicenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events/{eventId}/invitations": {
+      "get": {
+        "tags": [
+          "EventRosterEndpoints"
+        ],
+        "summary": "List who was invited",
+        "description": "Owner only. Who else was invited to a private event is not a participant's business, and an empty list for a non-owner would still confirm the event exists — so the answer is 404.",
+        "operationId": "GetEventInvitations",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/InvitationSummary"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "EventRosterEndpoints"
+        ],
+        "summary": "Invite somebody to an event",
+        "description": "Owner only. A duplicate is 409, decided by the unique index rather than by a read-then-write check. Inviting the owner is also 409: they already hold the strongest grant.",
+        "operationId": "PostEventInvitation",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          }
+        }
+      }
+    },
+    "/api/v1/events/{eventId}/invitations/{userId}": {
+      "delete": {
+        "tags": [
+          "EventRosterEndpoints"
+        ],
+        "summary": "Withdraw an invitation",
+        "description": "Owner only. The gate is read live on every request, so the invitee loses access on their next call rather than on their next sign-in.",
+        "operationId": "DeleteEventInvitation",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/events/{eventId}/attendances": {
+      "post": {
+        "tags": [
+          "EventRosterEndpoints"
+        ],
+        "summary": "Join an event's roster",
+        "description": "Any authenticated caller on a public event, an invitee on a private one. This is a roster and never a precondition: voting does not require it.",
+        "operationId": "PostEventAttendance",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          }
+        }
+      }
+    },
+    "/api/v1/events/{eventId}/attendances/current": {
+      "delete": {
+        "tags": [
+          "EventRosterEndpoints"
+        ],
+        "summary": "Leave an event's roster",
+        "description": "`current` rather than a user id: the only attendance a caller may remove is their own.",
+        "operationId": "DeleteEventAttendance",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/events/{eventId}/queue": {
+      "get": {
+        "tags": [
+          "EventQueueEndpoints"
+        ],
+        "summary": "Read the vote-ordered queue",
+        "description": "Anybody who may see the event may see its queue. Ordered by vote count and then by when each track was suggested, so the order is total and stable. Each row says whether the caller voted, and the count is read from the vote rows rather than from a stored counter.",
+        "operationId": "GetEventQueue",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QueueEntry"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/events/{eventId}/tracks": {
+      "post": {
+        "tags": [
+          "EventQueueEndpoints"
+        ],
+        "summary": "Suggest a track for an event",
+        "description": "Behind the licence gate: who may suggest is who may vote. The same video twice is 409, because two rows would split its votes between two queue entries.",
+        "operationId": "PostEventTrack",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events/{eventId}/tracks/{suggestionId}": {
+      "delete": {
+        "tags": [
+          "EventQueueEndpoints"
+        ],
+        "summary": "Remove a suggestion",
+        "description": "The suggester's or the event owner's, and nobody else's. Its votes go with it: a vote is a vote for that suggestion, and orphaned rows would leave a count that counts nothing.",
+        "operationId": "DeleteEventTrack",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "suggestionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/events/{eventId}/tracks/{suggestionId}/vote": {
+      "put": {
+        "tags": [
+          "EventVoteEndpoints"
+        ],
+        "summary": "Vote for a suggestion",
+        "description": "Idempotent: 201 the first time and 200 after, including when a concurrent request wrote the vote first — the unique index is the arbiter. On a LocationAndTimeRestricted event the body carries presence, and a missing or failed proof is 422. The coordinate is compared and discarded; it is never stored and never logged.",
+        "operationId": "PutEventVote",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "suggestionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/VoteRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "201": {
+            "description": "Created"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "422": {
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "description": "Too Many Requests"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "EventVoteEndpoints"
+        ],
+        "summary": "Take back a vote",
+        "description": "The caller's own vote and no other. No presence proof is asked for: leaving the venue is not a reason to be stuck having voted, and a withdrawal lowers a count rather than raising one.",
+        "operationId": "DeleteEventVote",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "suggestionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/events/{eventId}/event-codes": {
+      "post": {
+        "tags": [
+          "EventVoteEndpoints"
+        ],
+        "summary": "Issue a short-lived venue code",
+        "description": "Owner only, and rate limited per account. The code is returned once and stored only as a SHA-256 digest; it is single-use per account, so one code works for a whole room exactly once each.",
+        "operationId": "PostEventCode",
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/EventCodeRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "429": {
+            "description": "Too Many Requests"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/devices": {
+      "post": {
+        "tags": [
+          "DeviceEndpoints"
+        ],
+        "summary": "Register the calling device",
+        "description": "Takes no body: the platform, the model and the app version come from the mandatory client headers. Registering the same device twice is 409, where the same device means the same owner, platform and model — a phone that updates its app is the same phone.",
+        "operationId": "PostDevice",
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "409": {
+            "description": "Conflict"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "DeviceEndpoints"
+        ],
+        "summary": "List the caller's own devices",
+        "description": "Only the caller's. The route takes no account id, because a route that accepted one would be a route somebody would eventually pass somebody else's.",
+        "operationId": "GetDevices",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeviceSummary"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/v1/devices/{deviceId}": {
+      "delete": {
+        "tags": [
+          "DeviceEndpoints"
+        ],
+        "summary": "Remove one of the caller's devices",
+        "description": "Owner only. Another account's device answers 404, never 403, because 403 would confirm it exists.",
+        "operationId": "DeleteDevice",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/devices/{deviceId}/control": {
+      "get": {
+        "tags": [
+          "DeviceControlEndpoints"
+        ],
+        "summary": "Read who controls a device",
+        "description": "The owner or the current controller may ask; anybody else gets 404. With no grant the controller is the owner. The response carries the ETag a claim sends back as If-Match.",
+        "operationId": "GetDeviceControl",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceControl"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "DeviceControlEndpoints"
+        ],
+        "summary": "Hand playback control to a friend",
+        "description": "Owner only, and requires If-Match. The grantee must be a friend of the owner, or the answer is 422. Two simultaneous claims: one 200, one 412 — the loser loses visibly, because two clients each believing they hold one device is the bug.",
+        "operationId": "PutDeviceControl",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ControlGrantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "412": {
+            "description": "Precondition Failed"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "DeviceControlEndpoints"
+        ],
+        "summary": "Return a device to its owner's control",
+        "description": "The owner's revoke and the controller's release are the same route and the same effect. A device already under owner control answers 404: there was no grant to release.",
+        "operationId": "DeleteDeviceControl",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/devices/{deviceId}/playback-session": {
+      "get": {
+        "tags": [
+          "DevicePlaybackEndpoints"
+        ],
+        "summary": "Read what a device is playing",
+        "description": "The device's owner or its current controller: the people who could change what it plays are the people entitled to know what it is playing. A device that is not playing answers 404.",
+        "operationId": "GetDevicePlaybackSession",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackSessionDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/tracks": {
+      "get": {
+        "tags": [
+          "TrackEndpoints"
+        ],
+        "summary": "Search the catalog",
+        "description": "The only route that can reach YouTube's expensive search call, so it is rate limited per account and its results are cached. A repeated query inside the cache window costs no quota at all.",
+        "operationId": "GetTracks",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrackMetadata"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "429": {
+            "description": "Too Many Requests"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tracks/{youtubeVideoId}": {
+      "get": {
+        "tags": [
+          "TrackEndpoints"
+        ],
+        "summary": "Resolve one track",
+        "description": "Prefers both cache levels, then one cheap metadata call. A video the catalog does not know is 404, and so is a malformed id — the contract lists no 422 here, and one answer for both keeps the route from saying which ids are well formed. A catalog that cannot answer at all is 503.",
+        "operationId": "GetTrack",
+        "parameters": [
+          {
+            "name": "youtubeVideoId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrackMetadata"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "503": {
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
+    "/api/v1/playback-sessions": {
+      "post": {
+        "tags": [
+          "PlaybackEndpoints"
+        ],
+        "summary": "Start playing a source on a device",
+        "description": "The device's owner starts playback, on a source they may see. The server picks what plays first. A device already playing answers 409: it holds at most one live session.",
+        "operationId": "PostPlaybackSession",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaybackStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          }
+        }
+      }
+    },
+    "/api/v1/playback-sessions/{sessionId}": {
+      "get": {
+        "tags": [
+          "PlaybackEndpoints"
+        ],
+        "summary": "Read one playback session",
+        "description": "Anybody who may see the source may see what it is playing, with the ETag a command sends back as If-Match. A caller who may not see the source answers 404.",
+        "operationId": "GetPlaybackSession",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackSessionDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "PlaybackEndpoints"
+        ],
+        "summary": "Jump to a named item",
+        "description": "The one route where the client chooses what plays, so it is guarded and bounded: the controller may jump, and only to an item of the source already playing.",
+        "operationId": "PatchPlaybackSession",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlaybackJumpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "412": {
+            "description": "Precondition Failed"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "PlaybackEndpoints"
+        ],
+        "summary": "Stop playback",
+        "description": "The device's owner stops it: a delegate steers what plays and does not get to switch the speaker off. The row is stamped ended rather than deleted, and the device may start again.",
+        "operationId": "DeletePlaybackSession",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/playback-sessions/{sessionId}/advances": {
+      "post": {
+        "tags": [
+          "PlaybackEndpoints"
+        ],
+        "summary": "Report that the track ended",
+        "description": "The controller's route. The server picks the next item — highest vote count for an event, next position for a playlist. `expectedNowPlayingId` makes a retry harmless: a stale expectation returns the current state rather than skipping a second track. A stale If-Match is 412. Nothing left to play ends the session and answers 409.",
+        "operationId": "PostPlaybackAdvance",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PlaybackAdvanceRequest"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlaybackSessionDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "404": {
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "Conflict"
+          },
+          "412": {
+            "description": "Precondition Failed"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ChangePasswordCommand": {
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ],
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "description": "The password the caller is replacing. Proof that the person holding the\n            token also knows the credential, which is what ASVS V7.5.1 asks for before a sensitive attribute\n            changes."
+          },
+          "newPassword": {
+            "type": "string",
+            "description": "The replacement, held to the same rules registration applies."
+          },
+          "auditAction": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "auditTargetType": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "Replaces the caller's password — `POST /api/v1/me/password`, SPEC-028."
+      },
+      "CollaboratorCreation": {
+        "required": [
+          "userId",
+          "canEdit"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "The account to name.",
+            "format": "uuid"
+          },
+          "canEdit": {
+            "type": "boolean",
+            "description": "Whether they may write to it."
+          }
+        },
+        "description": "The collaborator payload — `docs/api/ENDPOINTS.md` §5."
+      },
+      "CollaboratorSummary": {
+        "required": [
+          "userId",
+          "displayName",
+          "canEdit"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "Their account.",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Their handle."
+          },
+          "canEdit": {
+            "type": "boolean",
+            "description": "Whether they may write to it."
+          }
+        },
+        "description": "One person named on a playlist."
+      },
+      "ControlGrantRequest": {
+        "required": [
+          "granteeUserId"
+        ],
+        "type": "object",
+        "properties": {
+          "granteeUserId": {
+            "type": "string",
+            "description": "Who is being given control. Must be a friend of the owner.",
+            "format": "uuid"
+          }
+        },
+        "description": "The control grant payload — `docs/api/ENDPOINTS.md` §6."
+      },
+      "ControlGrantSummary": {
+        "required": [
+          "deviceId",
+          "ownerId",
+          "ownerDisplayName",
+          "platform",
+          "model"
+        ],
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "description": "The device.",
+            "format": "uuid"
+          },
+          "ownerId": {
+            "type": "string",
+            "description": "Who owns it.",
+            "format": "uuid"
+          },
+          "ownerDisplayName": {
+            "type": "string",
+            "description": "Their display name, so a client needs no second call."
+          },
+          "platform": {
+            "type": "string",
+            "description": "Its platform."
+          },
+          "model": {
+            "type": "string",
+            "description": "Its model."
+          }
+        },
+        "description": "One device somebody else has given this caller control of."
+      },
+      "CoordinatesRequest": {
+        "required": [
+          "latitude",
+          "longitude"
+        ],
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "The latitude, in degrees.",
+            "format": "double"
+          },
+          "longitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "The longitude, in degrees.",
+            "format": "double"
+          }
+        },
+        "description": "A claimed position. Compared and discarded."
+      },
+      "DeviceControl": {
+        "required": [
+          "deviceId",
+          "ownerId",
+          "controllerUserId",
+          "isDelegated",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "description": "The device.",
+            "format": "uuid"
+          },
+          "ownerId": {
+            "type": "string",
+            "description": "Its owner.",
+            "format": "uuid"
+          },
+          "controllerUserId": {
+            "type": "string",
+            "description": "Who may command playback on it. **Never null here**: with no grant this is the owner, because that is the\nquestion the endpoint was asked. The row's own column stays null, which is a different question — SPEC-020\ndecision 2.",
+            "format": "uuid"
+          },
+          "isDelegated": {
+            "type": "boolean",
+            "description": "Whether control is held by somebody other than the owner."
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "The `xmin`, which the endpoint publishes as the `ETag`.",
+            "format": "uint32"
+          }
+        },
+        "description": "Who controls a device, and the version a claim must send back."
+      },
+      "DeviceSummary": {
+        "required": [
+          "deviceId",
+          "platform",
+          "model",
+          "appVersion",
+          "controllerUserId"
+        ],
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "description": "The device.",
+            "format": "uuid"
+          },
+          "platform": {
+            "type": "string",
+            "description": "Its platform."
+          },
+          "model": {
+            "type": "string",
+            "description": "Its model."
+          },
+          "appVersion": {
+            "type": "string",
+            "description": "The application version it last registered with."
+          },
+          "controllerUserId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Who holds delegated control, or null while the owner does.",
+            "format": "uuid"
+          }
+        },
+        "description": "One device, as its owner reads it."
+      },
+      "DiscoveryDocument": {
+        "required": [
+          "issuer",
+          "jwks_uri",
+          "authorization_endpoint",
+          "token_endpoint",
+          "userinfo_endpoint",
+          "revocation_endpoint",
+          "scopes_supported",
+          "id_token_signing_alg_values_supported",
+          "subject_types_supported",
+          "response_types_supported",
+          "grant_types_supported",
+          "code_challenge_methods_supported"
+        ],
+        "type": "object",
+        "properties": {
+          "issuer": {
+            "type": "string",
+            "description": "This provider's identifier, which is also the origin the document came from."
+          },
+          "jwks_uri": {
+            "type": "string",
+            "description": "Where the public keys are."
+          },
+          "authorization_endpoint": {
+            "type": "string",
+            "description": "Where the code flow starts — SPEC-044. It requires a bearer token,\n    which is this provider's first-party limitation and is recorded in ADR-0031 rather than here: a discovery\n    document has no member for \"and the account must already be signed in\"."
+          },
+          "token_endpoint": {
+            "type": "string",
+            "description": "Where a code is exchanged and a session is rotated."
+          },
+          "userinfo_endpoint": {
+            "type": "string",
+            "description": "Where the claims a grant allows are read — SPEC-045."
+          },
+          "revocation_endpoint": {
+            "type": "string",
+            "description": "Where a refresh token ends its session — RFC 7009."
+          },
+          "scopes_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`openid`, `profile`, `email` — each with a claim behind it."
+          },
+          "id_token_signing_alg_values_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`RS256`, and nothing else — ADR-0031 pinned it."
+          },
+          "subject_types_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`public`: the `sub` is the same for every client."
+          },
+          "response_types_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`code`, and nothing else: no implicit flow and no hybrid."
+          },
+          "grant_types_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`authorization_code` and `refresh_token`."
+          },
+          "code_challenge_methods_supported": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`S256` only. `plain` is refused, which `docs/api/ENDPOINTS.md` already publishes."
+          }
+        },
+        "description": "The discovery document — OpenID Connect Discovery 1.0 §3, with only the members this provider can honour."
+      },
+      "EmailVerificationRequest": {
+        "required": [
+          "token"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "The token from the verification mail."
+          }
+        },
+        "description": "The email verification payload — `docs/api/ENDPOINTS.md` §1."
+      },
+      "EventCodeRequest": {
+        "required": [
+          "ttlSeconds"
+        ],
+        "type": "object",
+        "properties": {
+          "ttlSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "description": "How long the code should be accepted for.",
+            "format": "int32"
+          }
+        },
+        "description": "The code-issuing payload."
+      },
+      "EventCreation": {
+        "required": [
+          "name",
+          "startsAtUtc",
+          "endsAtUtc",
+          "visibility",
+          "licence",
+          "presenceProof",
+          "geofence"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "What it is called."
+          },
+          "startsAtUtc": {
+            "type": "string",
+            "description": "When it begins.",
+            "format": "date-time"
+          },
+          "endsAtUtc": {
+            "type": "string",
+            "description": "When it ends.",
+            "format": "date-time"
+          },
+          "visibility": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Who may find it. Defaults to private.",
+                "$ref": "#/components/schemas/Visibility"
+              }
+            ]
+          },
+          "licence": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Who may vote in it. Defaults to invited only.",
+                "$ref": "#/components/schemas/LicenceMode"
+              }
+            ]
+          },
+          "presenceProof": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Which proof a voter must supply — required by the restricted licence.",
+                "$ref": "#/components/schemas/PresenceProof"
+              }
+            ]
+          },
+          "geofence": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "The venue, required when the proof involves one.",
+                "$ref": "#/components/schemas/GeofenceRequest"
+              }
+            ]
+          }
+        },
+        "description": "The event creation payload — `docs/api/ENDPOINTS.md` §4."
+      },
+      "EventLicenceRequest": {
+        "required": [
+          "visibility",
+          "licence",
+          "presenceProof",
+          "geofence"
+        ],
+        "type": "object",
+        "properties": {
+          "visibility": {
+            "description": "Who may find it.",
+            "$ref": "#/components/schemas/Visibility"
+          },
+          "licence": {
+            "description": "Who may vote in it.",
+            "$ref": "#/components/schemas/LicenceMode"
+          },
+          "presenceProof": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Which proof a voter must supply.",
+                "$ref": "#/components/schemas/PresenceProof"
+              }
+            ]
+          },
+          "geofence": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "The venue.",
+                "$ref": "#/components/schemas/GeofenceRequest"
+              }
+            ]
+          }
+        },
+        "description": "The licence payload."
+      },
+      "EventMetadataRequest": {
+        "required": [
+          "name",
+          "startsAtUtc",
+          "endsAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The new name."
+          },
+          "startsAtUtc": {
+            "type": "string",
+            "description": "The new start.",
+            "format": "date-time"
+          },
+          "endsAtUtc": {
+            "type": "string",
+            "description": "The new end.",
+            "format": "date-time"
+          }
+        },
+        "description": "The metadata payload for the guarded `PATCH`."
+      },
+      "EventResponse": {
+        "required": [
+          "eventId",
+          "name",
+          "visibility",
+          "licence",
+          "startsAtUtc",
+          "endsAtUtc",
+          "ownerId",
+          "geofence"
+        ],
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "description": "The event.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Its name."
+          },
+          "visibility": {
+            "description": "Who may find it.",
+            "$ref": "#/components/schemas/Visibility"
+          },
+          "licence": {
+            "description": "Who may vote in it.",
+            "$ref": "#/components/schemas/LicenceMode"
+          },
+          "startsAtUtc": {
+            "type": "string",
+            "description": "When it begins.",
+            "format": "date-time"
+          },
+          "endsAtUtc": {
+            "type": "string",
+            "description": "When it ends.",
+            "format": "date-time"
+          },
+          "ownerId": {
+            "type": "string",
+            "description": "Its owner.",
+            "format": "uuid"
+          },
+          "geofence": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "The venue, when the licence has one.",
+                "$ref": "#/components/schemas/GeofenceRequest"
+              }
+            ]
+          }
+        },
+        "description": "One event, as a client reads it."
+      },
+      "EventSummary": {
+        "required": [
+          "eventId",
+          "name",
+          "visibility",
+          "startsAtUtc",
+          "endsAtUtc",
+          "ownerId"
+        ],
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "description": "The event.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "What it is called."
+          },
+          "visibility": {
+            "description": "Who may find it.",
+            "$ref": "#/components/schemas/Visibility"
+          },
+          "startsAtUtc": {
+            "type": "string",
+            "description": "When it begins.",
+            "format": "date-time"
+          },
+          "endsAtUtc": {
+            "type": "string",
+            "description": "When it ends.",
+            "format": "date-time"
+          },
+          "ownerId": {
+            "type": "string",
+            "description": "Its owner.",
+            "format": "uuid"
+          }
+        },
+        "description": "One event in a list."
+      },
+      "FriendRequestCreation": {
+        "required": [
+          "targetUserId"
+        ],
+        "type": "object",
+        "properties": {
+          "targetUserId": {
+            "type": "string",
+            "description": "The account being asked.",
+            "format": "uuid"
+          }
+        },
+        "description": "The friend request payload — `docs/api/ENDPOINTS.md` §2."
+      },
+      "FriendRequestDecision": {
+        "required": [
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "`accepted` or `declined`."
+          }
+        },
+        "description": "The response payload for accepting or declining."
+      },
+      "FriendRequestResponse": {
+        "required": [
+          "requestId",
+          "userId",
+          "displayName",
+          "requestedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "description": "The id the respond and cancel routes take.",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "description": "The other party.",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Their handle."
+          },
+          "requestedAt": {
+            "type": "string",
+            "description": "When it was sent.",
+            "format": "date-time"
+          }
+        },
+        "description": "One pending request, as a client reads it."
+      },
+      "FriendResponse": {
+        "required": [
+          "userId",
+          "displayName",
+          "friendsSince"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "Their account id.",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Their handle."
+          },
+          "friendsSince": {
+            "type": "string",
+            "description": "When the friendship began.",
+            "format": "date-time"
+          }
+        },
+        "description": "One friend, as a client reads them."
+      },
+      "GeofenceRequest": {
+        "required": [
+          "latitude",
+          "longitude",
+          "radiusMetres"
+        ],
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "The venue's latitude.",
+            "format": "double"
+          },
+          "longitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "The venue's longitude.",
+            "format": "double"
+          },
+          "radiusMetres": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How far from the centre still counts.",
+            "format": "int32"
+          }
+        },
+        "description": "A venue and how close counts as present — ADR-0014."
+      },
+      "HttpValidationProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "errors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "codes": {
+            "type": [
+              "null",
+              "object"
+            ],
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "The stable code for each message in `errors`, under the same keys and in the same order — ADR-0045. A client switches on these and renders `errors`."
+          }
+        }
+      },
+      "InvitationRequest": {
+        "required": [
+          "userId"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "Who to invite.",
+            "format": "uuid"
+          }
+        },
+        "description": "The invitation payload."
+      },
+      "InvitationSummary": {
+        "required": [
+          "userId",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "Who was invited.",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Their display name, so a client needs no second call."
+          }
+        },
+        "description": "One invitation."
+      },
+      "LicenceMode": {
+        "type": "integer"
+      },
+      "MusicPreferencesRequest": {
+        "required": [
+          "genres",
+          "artists"
+        ],
+        "type": "object",
+        "properties": {
+          "genres": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "The genres the user names."
+          },
+          "artists": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "The artists the user names."
+          }
+        },
+        "description": "The music preferences payload — `docs/api/ENDPOINTS.md` §2."
+      },
+      "OAuthErrorResponse": {
+        "required": [
+          "error"
+        ],
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "The specification's code: `invalid_request`, `invalid_client`, `invalid_grant` or\n    `unsupported_grant_type`."
+          }
+        },
+        "description": "A refused grant — RFC 6749 §5.2."
+      },
+      "OwnProfileResponse": {
+        "required": [
+          "displayName",
+          "realName",
+          "bio",
+          "location",
+          "birthDate",
+          "genres",
+          "artists"
+        ],
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "description": "The handle the account is known by. Always public."
+          },
+          "realName": {
+            "description": "The real name and its tier.",
+            "$ref": "#/components/schemas/ProfileFieldResponseOfstring"
+          },
+          "bio": {
+            "description": "The bio and its tier.",
+            "$ref": "#/components/schemas/ProfileFieldResponseOfstring"
+          },
+          "location": {
+            "description": "The location and its tier.",
+            "$ref": "#/components/schemas/ProfileFieldResponseOfstring"
+          },
+          "birthDate": {
+            "description": "The date of birth and its tier.",
+            "$ref": "#/components/schemas/ProfileFieldDateResponse"
+          },
+          "genres": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The genres the user named."
+          },
+          "artists": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The artists the user named."
+          }
+        },
+        "description": "A profile as its owner reads it."
+      },
+      "PasswordResetRequest": {
+        "required": [
+          "email"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "The address to send a reset link to."
+          }
+        },
+        "description": "The reset request payload — `docs/api/ENDPOINTS.md` §1."
+      },
+      "PasswordResetSubmission": {
+        "required": [
+          "token",
+          "newPassword"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "The token from the reset mail."
+          },
+          "newPassword": {
+            "type": "string",
+            "description": "The replacement password. Never logged or echoed back."
+          }
+        },
+        "description": "The reset payload — `docs/api/ENDPOINTS.md` §1."
+      },
+      "PlaybackAdvanceRequest": {
+        "required": [
+          "expectedNowPlayingId"
+        ],
+        "type": "object",
+        "properties": {
+          "expectedNowPlayingId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "What the client believes is playing. A mismatch means this is a retry of a move that already happened.",
+            "format": "uuid"
+          }
+        },
+        "description": "The advance payload."
+      },
+      "PlaybackJumpRequest": {
+        "required": [
+          "nowPlayingId"
+        ],
+        "type": "object",
+        "properties": {
+          "nowPlayingId": {
+            "type": "string",
+            "description": "The item to play, which must belong to the session's source.",
+            "format": "uuid"
+          }
+        },
+        "description": "The jump payload."
+      },
+      "PlaybackSessionDetail": {
+        "required": [
+          "sessionId",
+          "deviceId",
+          "sourceType",
+          "sourceId",
+          "nowPlayingId",
+          "startedAtUtc",
+          "endedAtUtc",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "The session.",
+            "format": "uuid"
+          },
+          "deviceId": {
+            "type": "string",
+            "description": "The device doing the playing.",
+            "format": "uuid"
+          },
+          "sourceType": {
+            "description": "Whether the source is an event or a playlist.",
+            "$ref": "#/components/schemas/PlaybackSourceType"
+          },
+          "sourceId": {
+            "type": "string",
+            "description": "The event or the playlist.",
+            "format": "uuid"
+          },
+          "nowPlayingId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "What is playing now, or null once the queue is exhausted.",
+            "format": "uuid"
+          },
+          "startedAtUtc": {
+            "type": "string",
+            "description": "When playback began.",
+            "format": "date-time"
+          },
+          "endedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "When it stopped, or null while it is live.",
+            "format": "date-time"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "The `xmin`, which the endpoint publishes as the `ETag`.",
+            "format": "uint32"
+          }
+        },
+        "description": "One playback session, as a caller who may see its source reads it."
+      },
+      "PlaybackSourceType": {
+        "type": "integer",
+        "description": "What a playback session is playing from — ADR-0017."
+      },
+      "PlaybackStartRequest": {
+        "required": [
+          "deviceId",
+          "sourceType",
+          "sourceId"
+        ],
+        "type": "object",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "description": "The device, which the caller must own.",
+            "format": "uuid"
+          },
+          "sourceType": {
+            "description": "Whether the source is an event or a playlist.",
+            "$ref": "#/components/schemas/PlaybackSourceType"
+          },
+          "sourceId": {
+            "type": "string",
+            "description": "The event or the playlist.",
+            "format": "uuid"
+          }
+        },
+        "description": "The session-start payload — `docs/api/ENDPOINTS.md` §7."
+      },
+      "PlaylistCreation": {
+        "required": [
+          "name",
+          "visibility",
+          "licence"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "What it is called."
+          },
+          "visibility": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Who may find it. Defaults to private.",
+                "$ref": "#/components/schemas/Visibility"
+              }
+            ]
+          },
+          "licence": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Who may write to it. Defaults to invited only.",
+                "$ref": "#/components/schemas/LicenceMode"
+              }
+            ]
+          }
+        },
+        "description": "The playlist creation payload — `docs/api/ENDPOINTS.md` §5."
+      },
+      "PlaylistLicenceRequest": {
+        "required": [
+          "visibility",
+          "licence"
+        ],
+        "type": "object",
+        "properties": {
+          "visibility": {
+            "description": "Who may find it.",
+            "$ref": "#/components/schemas/Visibility"
+          },
+          "licence": {
+            "description": "Who may write to it.",
+            "$ref": "#/components/schemas/LicenceMode"
+          }
+        },
+        "description": "The licence payload."
+      },
+      "PlaylistMetadata": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The new name."
+          }
+        },
+        "description": "The metadata payload for the guarded `PATCH`."
+      },
+      "PlaylistResponse": {
+        "required": [
+          "playlistId",
+          "name",
+          "visibility",
+          "licence",
+          "ownerId",
+          "mayEdit"
+        ],
+        "type": "object",
+        "properties": {
+          "playlistId": {
+            "type": "string",
+            "description": "The playlist.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Its name."
+          },
+          "visibility": {
+            "description": "Who may find it.",
+            "$ref": "#/components/schemas/Visibility"
+          },
+          "licence": {
+            "description": "Who may write to it.",
+            "$ref": "#/components/schemas/LicenceMode"
+          },
+          "ownerId": {
+            "type": "string",
+            "description": "Its owner.",
+            "format": "uuid"
+          },
+          "mayEdit": {
+            "type": "boolean",
+            "description": "Whether this caller may write to it, so a client can hide an editor it cannot use."
+          }
+        },
+        "description": "One playlist, as a client reads it."
+      },
+      "PlaylistSummary": {
+        "required": [
+          "playlistId",
+          "name",
+          "visibility",
+          "ownerId"
+        ],
+        "type": "object",
+        "properties": {
+          "playlistId": {
+            "type": "string",
+            "description": "The playlist.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Its name."
+          },
+          "visibility": {
+            "description": "Who may find it.",
+            "$ref": "#/components/schemas/Visibility"
+          },
+          "ownerId": {
+            "type": "string",
+            "description": "Its owner.",
+            "format": "uuid"
+          }
+        },
+        "description": "One playlist in a list."
+      },
+      "PlaylistTrackSummary": {
+        "required": [
+          "playlistTrackId",
+          "youtubeVideoId",
+          "position",
+          "addedByUserId"
+        ],
+        "type": "object",
+        "properties": {
+          "playlistTrackId": {
+            "type": "string",
+            "description": "The id the move and remove routes take.",
+            "format": "uuid"
+          },
+          "youtubeVideoId": {
+            "type": "string",
+            "description": "The video id, verbatim. No title or duration: that is slice S4's catalog."
+          },
+          "position": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "The sparse ordering key. Exposed because it is not a secret and a client that has it\n            can render a stable list without inferring order from array indices.",
+            "format": "int64"
+          },
+          "addedByUserId": {
+            "type": "string",
+            "description": "Who added it.",
+            "format": "uuid"
+          }
+        },
+        "description": "One track in a playlist, as a client reads it — `GET /api/v1/playlists/{playlistId}/tracks`."
+      },
+      "PresenceProof": {
+        "type": "integer"
+      },
+      "PresenceRequest": {
+        "required": [
+          "coordinates",
+          "eventCode"
+        ],
+        "type": "object",
+        "properties": {
+          "coordinates": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Where the client says it is.",
+                "$ref": "#/components/schemas/CoordinatesRequest"
+              }
+            ]
+          },
+          "eventCode": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The code read at the venue."
+          }
+        },
+        "description": "The evidence a voter supplies — `presence` in `docs/api/ENDPOINTS.md` §4."
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "code": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The stable code for a refusal that names no field, such as a wrong current password — ADR-0045."
+          }
+        }
+      },
+      "ProfileDateFieldRequest": {
+        "required": [
+          "value",
+          "visibility"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The date, or null to clear the field.",
+            "format": "date"
+          },
+          "visibility": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Who may see it. Absent means `422`.",
+                "$ref": "#/components/schemas/ProfileFieldVisibility"
+              }
+            ]
+          }
+        },
+        "description": "The date-of-birth field as a client sends it."
+      },
+      "ProfileFieldDateResponse": {
+        "required": [
+          "value",
+          "visibility"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The date, or null when the field is empty.",
+            "format": "date"
+          },
+          "visibility": {
+            "description": "Who may see it.",
+            "$ref": "#/components/schemas/ProfileFieldVisibility"
+          }
+        },
+        "description": "The date-of-birth field and its tier."
+      },
+      "ProfileFieldRequestOfstring": {
+        "required": [
+          "value",
+          "visibility"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The value, or null to clear the field."
+          },
+          "visibility": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "Who may see it. Absent means `422`: the binder would otherwise default a missing\n    enum to its zero value, which is `Public` — the exact silent default `docs/api/ENDPOINTS.md` forbids.",
+                "$ref": "#/components/schemas/ProfileFieldVisibility"
+              }
+            ]
+          }
+        },
+        "description": "One field as a client sends it: a value and a tier that is **optional on the wire so its absence can be\nrefused**."
+      },
+      "ProfileFieldResponseOfstring": {
+        "required": [
+          "value",
+          "visibility"
+        ],
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The value, or null when the field is empty."
+          },
+          "visibility": {
+            "description": "Who may see it.",
+            "$ref": "#/components/schemas/ProfileFieldVisibility"
+          }
+        },
+        "description": "One field's value and the tier that governs it."
+      },
+      "ProfileFieldVisibility": {
+        "type": "integer",
+        "description": "Who may see one profile field — subject V.1's three tiers, SDD §6.2."
+      },
+      "QueueEntry": {
+        "required": [
+          "suggestionId",
+          "youtubeVideoId",
+          "suggestedByUserId",
+          "votes",
+          "callerVoted"
+        ],
+        "type": "object",
+        "properties": {
+          "suggestionId": {
+            "type": "string",
+            "description": "The suggestion.",
+            "format": "uuid"
+          },
+          "youtubeVideoId": {
+            "type": "string",
+            "description": "The video."
+          },
+          "suggestedByUserId": {
+            "type": "string",
+            "description": "Who suggested it.",
+            "format": "uuid"
+          },
+          "votes": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How many accounts have voted for it, counted from the rows.",
+            "format": "int32"
+          },
+          "callerVoted": {
+            "type": "boolean",
+            "description": "Whether the caller is one of them, so a client can render a toggle."
+          }
+        },
+        "description": "One row of the vote-ordered queue."
+      },
+      "RegistrationRequest": {
+        "required": [
+          "email",
+          "password",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "The address to register."
+          },
+          "password": {
+            "type": "string",
+            "description": "The plaintext password, 12 to 64 characters and at most 72 UTF-8 bytes."
+          },
+          "displayName": {
+            "type": "string",
+            "description": "The name other users see."
+          }
+        },
+        "description": "The registration payload — `docs/api/ENDPOINTS.md` §1."
+      },
+      "SessionRequest": {
+        "required": [
+          "email",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "The address the account is known by."
+          },
+          "password": {
+            "type": "string",
+            "description": "The plaintext password. Never logged or echoed back."
+          }
+        },
+        "description": "The sign-in payload — `docs/api/ENDPOINTS.md` §1."
+      },
+      "SessionResponse": {
+        "required": [
+          "sessionId",
+          "platform",
+          "device",
+          "appVersion",
+          "startedAt",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "description": "The id to pass to `DELETE /auth/sessions/{sessionId}`.",
+            "format": "uuid"
+          },
+          "platform": {
+            "type": "string",
+            "description": "The client platform that started the session."
+          },
+          "device": {
+            "type": "string",
+            "description": "The device that started it."
+          },
+          "appVersion": {
+            "type": "string",
+            "description": "The app version that started it."
+          },
+          "startedAt": {
+            "type": "string",
+            "description": "When the session began.",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "When it stops being renewable.",
+            "format": "date-time"
+          }
+        },
+        "description": "One session, as a client reads it — `docs/api/ENDPOINTS.md` §1."
+      },
+      "SocialLinkRequest": {
+        "required": [
+          "provider",
+          "code",
+          "codeVerifier",
+          "redirectUri"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "Which provider, lower case."
+          },
+          "code": {
+            "type": "string",
+            "description": "The authorization code."
+          },
+          "codeVerifier": {
+            "type": "string",
+            "description": "The PKCE verifier."
+          },
+          "redirectUri": {
+            "type": "string",
+            "description": "The redirect URI the code was issued against."
+          }
+        },
+        "description": "The link payload, which is the sign-in payload — SPEC-041."
+      },
+      "SocialLinkResponse": {
+        "required": [
+          "provider",
+          "email",
+          "linkedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "Which provider."
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The address it asserted when the link was made, or null."
+          },
+          "linkedAtUtc": {
+            "type": "string",
+            "description": "When it was linked.",
+            "format": "date-time"
+          }
+        },
+        "description": "One linked provider, as its owner sees it."
+      },
+      "SocialSessionRequest": {
+        "required": [
+          "provider",
+          "code",
+          "codeVerifier",
+          "redirectUri"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "Which provider, lower case."
+          },
+          "code": {
+            "type": "string",
+            "description": "The authorization code."
+          },
+          "codeVerifier": {
+            "type": "string",
+            "description": "The PKCE verifier."
+          },
+          "redirectUri": {
+            "type": "string",
+            "description": "The redirect URI the code was issued against."
+          }
+        },
+        "description": "The social sign-in payload — `docs/api/ENDPOINTS.md` §1."
+      },
+      "SuggestionRequest": {
+        "required": [
+          "youtubeVideoId"
+        ],
+        "type": "object",
+        "properties": {
+          "youtubeVideoId": {
+            "type": "string",
+            "description": "The video."
+          }
+        },
+        "description": "The suggestion payload — `docs/api/ENDPOINTS.md` §4."
+      },
+      "TokenGrantResponse": {
+        "required": [
+          "access_token",
+          "token_type",
+          "expires_in",
+          "refresh_token",
+          "id_token",
+          "scope"
+        ],
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "description": "The bearer token every other endpoint takes."
+          },
+          "token_type": {
+            "type": "string",
+            "description": "`Bearer`, and nothing else."
+          },
+          "expires_in": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "The access token's lifetime in seconds, for the client's own planning.",
+            "format": "int32"
+          },
+          "refresh_token": {
+            "type": "string",
+            "description": "The opaque refresh token. Rotated on every use."
+          },
+          "id_token": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The RS256 assertion of who authenticated, on the code grant only."
+          },
+          "scope": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "What was granted, on the code grant only."
+          }
+        },
+        "description": "The successful token response — RFC 6749 §5.1, with OpenID Connect's `id_token`."
+      },
+      "TokenPairResponse": {
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "expiresIn"
+        ],
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "description": "The signed, short-lived JWT."
+          },
+          "refreshToken": {
+            "type": "string",
+            "description": "The opaque refresh token, to be presented to\n    `POST /auth/tokens`. The server keeps only its digest."
+          },
+          "expiresIn": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "The access token's lifetime in seconds, for the client's own planning.",
+            "format": "int32"
+          }
+        },
+        "description": "The token pair both session endpoints answer with — `docs/api/ENDPOINTS.md` §1."
+      },
+      "TokenRotationRequest": {
+        "required": [
+          "refreshToken"
+        ],
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "description": "The refresh token issued by the previous exchange."
+          }
+        },
+        "description": "The rotation payload — `docs/api/ENDPOINTS.md` §1."
+      },
+      "TrackAddition": {
+        "required": [
+          "youtubeVideoId",
+          "afterTrackId",
+          "atHead"
+        ],
+        "type": "object",
+        "properties": {
+          "youtubeVideoId": {
+            "type": "string",
+            "description": "The video."
+          },
+          "afterTrackId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Put it after this track. Absent means the tail.",
+            "format": "uuid"
+          },
+          "atHead": {
+            "type": [
+              "null",
+              "boolean"
+            ],
+            "description": "True to put it before everything."
+          }
+        },
+        "description": "The add-a-track payload — `docs/api/ENDPOINTS.md` §5."
+      },
+      "TrackDestination": {
+        "required": [
+          "afterTrackId",
+          "beforeTrackId"
+        ],
+        "type": "object",
+        "properties": {
+          "afterTrackId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Put it after this track.",
+            "format": "uuid"
+          },
+          "beforeTrackId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Put it before this track.",
+            "format": "uuid"
+          }
+        },
+        "description": "The move payload. Exactly one neighbour, or `422`."
+      },
+      "TrackMetadata": {
+        "required": [
+          "youtubeVideoId",
+          "title",
+          "channel",
+          "durationSeconds",
+          "thumbnailUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "youtubeVideoId": {
+            "type": "string",
+            "description": "The 11-character video id."
+          },
+          "title": {
+            "type": "string",
+            "description": "The video's title."
+          },
+          "channel": {
+            "type": "string",
+            "description": "The channel that published it."
+          },
+          "durationSeconds": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How long it runs; zero for a live stream.",
+            "format": "int32"
+          },
+          "thumbnailUrl": {
+            "type": "string",
+            "description": "A thumbnail URL, served by the provider and never proxied."
+          }
+        },
+        "description": "One track, as every layer above `Infrastructure` sees it — `docs/api/ENDPOINTS.md` §3."
+      },
+      "UpdateProfileRequest": {
+        "required": [
+          "realName",
+          "bio",
+          "location",
+          "birthDate"
+        ],
+        "type": "object",
+        "properties": {
+          "realName": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "The real name and its tier, or absent to leave the field alone.",
+                "$ref": "#/components/schemas/ProfileFieldRequestOfstring"
+              }
+            ]
+          },
+          "bio": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "The bio and its tier, or absent.",
+                "$ref": "#/components/schemas/ProfileFieldRequestOfstring"
+              }
+            ]
+          },
+          "location": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "The location and its tier, or absent.",
+                "$ref": "#/components/schemas/ProfileFieldRequestOfstring"
+              }
+            ]
+          },
+          "birthDate": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "The date of birth and its tier, or absent.",
+                "$ref": "#/components/schemas/ProfileDateFieldRequest"
+              }
+            ]
+          }
+        },
+        "description": "The profile update payload — `docs/api/ENDPOINTS.md` §2."
+      },
+      "UserInfoResponse": {
+        "required": [
+          "sub",
+          "email",
+          "email_verified",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "sub": {
+            "type": "string",
+            "description": "The `sub`, which is the account's id."
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The address, when `email` was granted."
+          },
+          "email_verified": {
+            "type": [
+              "null",
+              "boolean"
+            ],
+            "description": "Whether this API has proof of it, under the same scope."
+          },
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The display name, when `profile` was granted."
+          }
+        },
+        "description": "The UserInfo response — OpenID Connect Core 1.0 §5.1, with the members this provider can honour."
+      },
+      "UserSearchResult": {
+        "required": [
+          "userId",
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "The account id, which is what a friend request takes.",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "The handle. The only always-public field, so the only one a search may show."
+          }
+        },
+        "description": "One account in a search result — `GET /api/v1/users`."
+      },
+      "VerificationRequest": {
+        "required": [
+          "email"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "The address to send another verification link to."
+          }
+        },
+        "description": "The verification resend payload — `docs/api/ENDPOINTS.md` §1."
+      },
+      "Visibility": {
+        "type": "integer"
+      },
+      "VisibleProfile": {
+        "required": [
+          "userId",
+          "displayName",
+          "realName",
+          "bio",
+          "location",
+          "birthDate"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "The account this describes.",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Always present: the one always-public field (ADR-0034)."
+          },
+          "realName": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Present only when the reader's relationship clears the field's tier."
+          },
+          "bio": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Same."
+          },
+          "location": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Same."
+          },
+          "birthDate": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Same.",
+            "format": "date"
+          }
+        },
+        "description": "One account's profile as a **particular reader** may see it — `GET /api/v1/users/{userId}`."
+      },
+      "VoteRequest": {
+        "required": [
+          "presence"
+        ],
+        "type": "object",
+        "properties": {
+          "presence": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "What the client offers as proof of being there.",
+                "$ref": "#/components/schemas/PresenceRequest"
+              }
+            ]
+          }
+        },
+        "description": "The vote payload. Empty unless the licence requires presence."
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "OAuth2Endpoints"
+    },
+    {
+      "name": "OAuth2TokenEndpoint"
+    },
+    {
+      "name": "OAuth2UserInfoEndpoints"
+    },
+    {
+      "name": "OpenIdMetadataEndpoints"
+    },
+    {
+      "name": "MusicRoom.WebAPI"
+    },
+    {
+      "name": "HealthEndpoints"
+    },
+    {
+      "name": "AccountPasswordEndpoints"
+    },
+    {
+      "name": "DeviceControlEndpoints"
+    },
+    {
+      "name": "AuthEndpoints"
+    },
+    {
+      "name": "SessionEndpoints"
+    },
+    {
+      "name": "PasswordResetEndpoints"
+    },
+    {
+      "name": "SocialAuthEndpoints"
+    },
+    {
+      "name": "ProfileEndpoints"
+    },
+    {
+      "name": "FriendEndpoints"
+    },
+    {
+      "name": "UserEndpoints"
+    },
+    {
+      "name": "PlaylistEndpoints"
+    },
+    {
+      "name": "PlaylistCollaboratorEndpoints"
+    },
+    {
+      "name": "PlaylistTrackEndpoints"
+    },
+    {
+      "name": "EventEndpoints"
+    },
+    {
+      "name": "EventLicenceEndpoints"
+    },
+    {
+      "name": "EventRosterEndpoints"
+    },
+    {
+      "name": "EventQueueEndpoints"
+    },
+    {
+      "name": "EventVoteEndpoints"
+    },
+    {
+      "name": "DeviceEndpoints"
+    },
+    {
+      "name": "DevicePlaybackEndpoints"
+    },
+    {
+      "name": "TrackEndpoints"
+    },
+    {
+      "name": "PlaybackEndpoints"
+    }
+  ]
+}

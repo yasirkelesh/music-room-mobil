@@ -38,13 +38,15 @@ export function Spin({ children, duration = 3600, running = true, reverse = fals
  * Items travelling around a ring. The ring rotates; each item counter-rotates
  * so avatars and covers stay upright.
  */
-export function Orbit({ diameter, items, duration = 30000, reverse = false, running = true, ringStyle }: {
+export function Orbit({ diameter, items, duration = 30000, reverse = false, running = true, ringStyle, phase = 0 }: {
   diameter: number;
   items: { key: string; node: ReactNode; size: number }[];
   duration?: number;
   reverse?: boolean;
   running?: boolean;
   ringStyle?: StyleProp<ViewStyle>;
+  /** Where the first item sits, in radians from 12 o'clock (so two rings don't line up). */
+  phase?: number;
 }) {
   const ring = useSpin(duration, running, reverse);
   const keep = useSpin(duration, running, !reverse);
@@ -52,7 +54,7 @@ export function Orbit({ diameter, items, duration = 30000, reverse = false, runn
   return (
     <Animated.View style={[{ position: 'absolute', width: diameter, height: diameter, borderRadius: r }, ringStyle, ring]}>
       {items.map((it, i) => {
-        const a = (i / items.length) * Math.PI * 2 - Math.PI / 2;
+        const a = (i / items.length) * Math.PI * 2 - Math.PI / 2 + phase;
         return (
           <View key={it.key} style={{ position: 'absolute', left: r + Math.cos(a) * r - it.size / 2, top: r + Math.sin(a) * r - it.size / 2 }}>
             <Animated.View style={keep}>{it.node}</Animated.View>

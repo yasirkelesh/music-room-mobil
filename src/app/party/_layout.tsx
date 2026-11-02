@@ -1,14 +1,16 @@
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+import { AppStack } from '@/components/AppStack';
 import { colors } from '@/theme';
 
 export default function PartyLayout() {
   return (
-    <>
-      <StatusBar style="light" />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.darkBg } }}>
-        <Stack.Screen name="rules" options={{ contentStyle: { backgroundColor: colors.bg } }} />
-      </Stack>
-    </>
+    <AppStack
+      bg={colors.darkBg}
+      routes={[
+        { name: 'rules', bg: colors.bg },
+        { name: 'pick', modal: true, bg: colors.bg },
+        // add songs on top of the room, so the queue is one swipe away
+        { name: 'suggest', modal: true, bg: '#111' },
+      ]}
+    />
   );
 }

@@ -4,7 +4,8 @@ import { colors } from '@/theme';
 export type IconName =
   | 'back' | 'down' | 'close' | 'plus' | 'play' | 'pause' | 'prev' | 'next' | 'search' | 'share'
   | 'check' | 'globe' | 'people' | 'lock' | 'mail' | 'pin' | 'heart' | 'phone' | 'laptop'
-  | 'speaker' | 'listen' | 'jam' | 'lists' | 'arrow' | 'up' | 'downTri' | 'more' | 'left' | 'right';
+  | 'speaker' | 'listen' | 'jam' | 'lists' | 'arrow' | 'up' | 'downTri' | 'more' | 'left' | 'right'
+  | 'shuffle' | 'edit' | 'settings';
 
 type Props = { name: IconName; size?: number; color?: string; strokeWidth?: number };
 
@@ -15,6 +16,9 @@ export function Icon({ name, size = 22, color = colors.label, strokeWidth = 1.8 
     switch (name) {
       case 'back': return <Path d="M15 5l-7 7 7 7" {...s} strokeWidth={2} />;
       case 'left': return <Path d="M15 6l-6 6 6 6" {...s} strokeWidth={2} />;
+      case 'shuffle': return <Path d="M4 7h3c3 0 5 10 9 10h4M4 17h3c1.6 0 2.8-1.6 3.8-3.6M13.2 9.6C14.2 8 15.2 7 16 7h4M17 4l3 3-3 3M17 14l3 3-3 3" {...s} />;
+      case 'edit': return <Path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4" {...s} />;
+      case 'settings': return <><Path d="M4 7h10M18 7h2M4 17h4M12 17h8" {...s} /><Circle cx={16} cy={7} r={2} {...s} /><Circle cx={10} cy={17} r={2} {...s} /></>;
       case 'right': return <Path d="M9 6l6 6-6 6" {...s} strokeWidth={2} />;
       case 'down': return <Path d="M6 9l6 6 6-6" {...s} strokeWidth={2} />;
       case 'close': return <Path d="M6 6l12 12M18 6L6 18" {...s} strokeWidth={2.2} />;

@@ -1,99 +1,111 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Animated, { LinearTransition } from 'react-native-reanimated';
-import { Avatar } from '@/components/Avatar';
-import { Cover } from '@/components/Cover';
-import { Disc } from '@/components/Disc';
+import { api } from '@/api/client';
+import { describeError } from '@/api/errors';
+import { EventSummary, Visibility } from '@/api/types';
+import { Blink } from '@/components/Blink';
 import { Icon } from '@/components/Icon';
-import { Group, Pill, tap, TextButton } from '@/components/ui';
-import { people, Person, tracks } from '@/data/mock';
-import { usePlayer } from '@/state/player';
-import { colors, TAB_INSET, type } from '@/theme';
+import { hm, liveAt, LiveCard, openParty as open, StartCard } from '@/components/PartyCards';
+import { FormError, Group, Pill, SectionHeader } from '@/components/ui';
+import { useAsync } from '@/lib/useAsync';
+import { colors, type } from '@/theme';
+import { useTabInset } from '@/components/MiniPlayer';
+import { readable } from '@/lib/layout';
 
-const members: { person: Person; aux?: boolean }[] = [
-  { person: people.me, aux: true },
-  { person: people.elif },
-  { person: people.mert },
-  { person: people.deniz },
-];
+const dayLabel = (iso: string, now: number) => {
+  const d = new Date(iso);
+  const today = new Date(now);
+  const tomorrow = new Date(now + 86400e3);
+  if (d.toDateString() === today.toDateString()) return 'BUGÜN';
+  if (d.toDateString() === tomorrow.toDateString()) return 'YARIN';
+  return d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }).toLocaleUpperCase('tr-TR');
+};
+
+/** Calendar-style block: live, or day + time. */
+function DateBlock({ e, now }: { e: EventSummary; now: number }) {
+  if (liveAt(e, now)) {
+    return (
+      <View style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: colors.black, alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+        <Blink><View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#FF4D4D' }} /></Blink>
+        <Text style={[type.caption, { color: colors.white, fontWeight: '700', fontSize: 10, letterSpacing: 1 }]}>CANLI</Text>
+      </View>
+    );
+  }
+  return (
+    <View style={{ width: 56, height: 56, borderRadius: 14, backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center' }}>
+      <Text style={[type.caption, { color: colors.secondary, fontWeight: '700', fontSize: 10, letterSpacing: 0.8 }]}>{dayLabel(e.startsAtUtc, now)}</Text>
+      <Text style={[type.headline, type.numeric, { fontSize: 16 }]}>{hm(e.startsAtUtc)}</Text>
+    </View>
+  );
+}
+
+function EventRow({ e, now }: { e: EventSummary; now: number }) {
+  const live = liveAt(e, now);
+  return (
+    <Pressable accessibilityRole="button" onPress={() => open(e)} style={({ pressed }) => ({ height: 76, flexDirection: 'row', alignItems: 'center', gap: 14, opacity: pressed ? 0.6 : 1 })}>
+      <DateBlock e={e} now={now} />
+      <View style={{ flex: 1 }}>
+        <Text style={[type.body, { fontWeight: '600' }]} numberOfLines={1}>{e.name}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 }}>
+          <Icon name={e.visibility === Visibility.Public ? 'globe' : 'lock'} size={12} color={colors.secondary} strokeWidth={2} />
+          <Text style={[type.footnote, { color: colors.secondary }]} numberOfLines={1}>
+            {e.visibility === Visibility.Public ? 'Herkese açık' : 'Özel'} · {live ? `${hm(e.endsAtUtc)}’e kadar` : `${hm(e.startsAtUtc)}–${hm(e.endsAtUtc)}`}
+          </Text>
+        </View>
+      </View>
+      <Icon name="right" size={14} color={colors.tertiary} />
+    </Pressable>
+  );
+}
+
+function Section({ title, items, now }: { title: string; items: EventSummary[]; now: number }) {
+  if (items.length === 0) return null;
+  return (
+    <>
+      <SectionHeader>{title}</SectionHeader>
+      <Group>{items.map((e) => <EventRow key={e.eventId} e={e} now={now} />)}</Group>
+    </>
+  );
+}
 
 export default function Jam() {
-  const { track, playing } = usePlayer();
-  const [queue, setQueue] = useState([
-    { id: 'moons', by: 'elif', votes: 2, mine: true },
-    { id: 'slowmo', by: 'mert', votes: 2, mine: false },
-    { id: 'dialup', by: 'deniz', votes: 0, mine: false },
-  ]);
-  const vote = (id: string) => {
-    tap();
-    setQueue((q) => q
-      .map((x) => (x.id === id ? { ...x, mine: !x.mine, votes: x.votes + (x.mine ? -1 : 1) } : x))
-      .sort((a, b) => b.votes - a.votes));
-  };
+  const tabInset = useTabInset();
+  const mine = useAsync(() => api.events.list('mine', { pageSize: 50 }));
+  const invited = useAsync(() => api.events.list('invited', { pageSize: 50 }));
+  const pub = useAsync(() => api.events.list('public', { pageSize: 50 }));
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(t); }, []);
+  useFocusEffect(useCallback(() => { setNow(Date.now()); mine.reload(); invited.reload(); pub.reload(); }, [])); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const R = 100;
+  const upcoming = (l: EventSummary[] | null) => (l ?? []).filter((e) => now <= +new Date(e.endsAtUtc)).sort((a, b) => +new Date(a.startsAtUtc) - +new Date(b.startsAtUtc));
+  const seen = new Set<string>();
+  const dedupe = (l: EventSummary[]) => l.filter((e) => (seen.has(e.eventId) ? false : (seen.add(e.eventId), true)));
+  const mineL = dedupe(upcoming(mine.data));
+  const invitedL = dedupe(upcoming(invited.data));
+  const pubL = dedupe(upcoming(pub.data));
+  const hero = [...mineL, ...invitedL, ...pubL].find((e) => liveAt(e, now));
+  const loading = mine.loading || invited.loading || pub.loading;
+  const error = mine.error ?? invited.error ?? pub.error;
+
   return (
     <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: colors.bg }}>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: TAB_INSET }} showsVerticalScrollIndicator={false}>
-        <View style={{ height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <TextButton title="Parti yap" onPress={() => router.push('/party/rules')} />
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
-            <Text style={[type.footnote, { color: colors.secondary }]}>kod</Text>
-            <Text style={[type.headline, type.numeric]}>K7·42X</Text>
-          </View>
+      <ScrollView contentContainerStyle={{ ...readable, paddingHorizontal: 20, paddingBottom: tabInset }} showsVerticalScrollIndicator={false}>
+        <View style={{ height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' }}>
+          <Pill title="Yeni parti" height={36} style={{ paddingHorizontal: 14 }} left={<Icon name="plus" size={14} color={colors.white} />} onPress={() => router.push('/party/rules')} />
         </View>
+        <Text accessibilityRole="header" style={type.largeTitle}>Jam</Text>
+        <Text style={[type.subhead, { color: colors.secondary, marginTop: 4 }]}>Birlikte sıra kurun, oylayın, en sevilen çalsın.</Text>
+        {error ? <FormError message={describeError(error)} /> : null}
 
-        <Text accessibilityRole="header" style={[type.hero, { fontSize: 40, marginTop: 12 }]}>Yasir’in odası</Text>
-        <Text style={[type.subhead, { color: colors.secondary, marginTop: 6 }]}>4 kişi · aux sende</Text>
+        {hero ? <LiveCard e={hero} /> : !loading && <StartCard />}
 
-        {/* the room: members sit on a ring around what's playing */}
-        <View style={{ height: 250, marginTop: 16, alignItems: 'center', justifyContent: 'center' }}>
-          <View style={{ position: 'absolute', width: R * 2, height: R * 2, borderRadius: R, borderWidth: 1, borderColor: colors.track }} />
-          <Disc cover={track.cover} size={80} finish="picture" spinning={playing} />
-          {members.map((m, i) => {
-            const a = (i / members.length) * Math.PI * 2 - Math.PI / 2;
-            const left = Math.cos(a) * R;
-            const top = Math.sin(a) * R;
-            return (
-              <View key={m.person.id} style={{ position: 'absolute', transform: [{ translateX: left }, { translateY: top }], alignItems: 'center' }}>
-                <Avatar person={m.person} size={40} override={m.aux ? { bg: colors.label, fg: colors.white } : undefined} ring={m.aux ? colors.bg : undefined} />
-                <Text style={[type.caption, { color: m.aux ? colors.label : colors.secondary, fontWeight: m.aux ? '600' : '400', position: 'absolute', top: 44, width: 60, textAlign: 'center' }]}>
-                  {m.aux ? 'sen · AUX' : m.person.name.toLowerCase()}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
+        <Section title="Partilerin" items={mineL.filter((e) => e !== hero)} now={now} />
+        <Section title="Davetlisin" items={invitedL.filter((e) => e !== hero)} now={now} />
+        <Section title="Keşfet" items={pubL.filter((e) => e !== hero)} now={now} />
 
-        <View style={{ marginTop: 16, flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text style={[type.footnote, { color: colors.secondary }]}>Sıradakiler</Text>
-          <Text style={[type.footnote, { color: colors.secondary }]}>oylar</Text>
-        </View>
-        <Group style={{ marginTop: 6 }}>
-          {queue.map((q) => {
-            const t = tracks[q.id];
-            return (
-              <Animated.View key={q.id} layout={LinearTransition.springify().damping(18)} style={{ height: 64, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <Cover cover={t.cover} size={44} radius={6} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[type.callout, { fontWeight: '500' }]}>{t.title}</Text>
-                  <Text style={[type.footnote, { color: colors.secondary }]}>{t.artist} · {q.by}</Text>
-                </View>
-                <Pressable accessibilityRole="button" accessibilityState={{ selected: q.mine }} accessibilityLabel={`${t.title} için oy ver`} onPress={() => vote(q.id)} style={{ minWidth: 52, height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                  <Icon name="up" size={12} color={q.mine ? colors.label : colors.disabled} />
-                  <Text style={[type.callout, type.numeric, { fontWeight: '600' }]}>{q.votes}</Text>
-                </Pressable>
-              </Animated.View>
-            );
-          })}
-        </Group>
-
-        <View style={{ marginTop: 20, flexDirection: 'row', gap: 10 }}>
-          <Pill title="Şarkı ekle" variant="outline" style={{ flex: 1 }} />
-          <Pill title="Aux’u devret" style={{ flex: 1 }} onPress={() => router.push('/room/handover')} />
-        </View>
+        {hero && <View style={{ marginTop: 8 }}><StartCard /></View>}
       </ScrollView>
     </SafeAreaView>
   );

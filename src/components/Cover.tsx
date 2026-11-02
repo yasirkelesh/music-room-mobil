@@ -1,14 +1,19 @@
-import { View } from 'react-native';
+import { Image, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
-import { covers, CoverKey } from '@/data/mock';
+import { covers, CoverSource } from '@/data/mock';
+import { colors } from '@/theme';
 
-type Props = { cover: CoverKey; size: number; radius?: number };
+type Props = { cover: CoverSource; size: number; radius?: number };
 
-/**
- * Album cover. Today it draws stand-in artwork; once the provider API is wired,
- * swap the <Svg> for <Image source={{ uri }} /> — every screen keeps working.
- */
+/** Album cover: stand-in artwork for a CoverKey, an <Image> for a thumbnail URL. */
 export function Cover({ cover, size, radius = 8 }: Props) {
+  if (typeof cover !== 'string') {
+    return (
+      <View style={{ width: size, height: size, borderRadius: radius, overflow: 'hidden', backgroundColor: colors.chromeLight }}>
+        <Image source={{ uri: cover.uri }} style={{ width: size, height: size }} resizeMode="cover" accessibilityIgnoresInvertColors />
+      </View>
+    );
+  }
   const c = covers[cover];
   const a = c.base;
   const b = c.ink;
@@ -62,9 +67,10 @@ export function Cover({ cover, size, radius = 8 }: Props) {
 }
 
 /** 2×2 collage of covers, used for playlists (Apple Music style). */
-export function Mosaic({ items, size, radius = 8 }: { items: CoverKey[]; size: number; radius?: number }) {
+export function Mosaic({ items, size, radius = 8 }: { items: CoverSource[]; size: number; radius?: number }) {
   const q = size / 2;
-  const four = [0, 1, 2, 3].map((i) => items[i % items.length]);
+  const four: CoverSource[] = items.length ? [0, 1, 2, 3].map((i) => items[i % items.length]) : [];
+  if (!four.length) return <View style={{ width: size, height: size, borderRadius: radius, backgroundColor: colors.chromeLight }} />;
   return (
     <View style={{ width: size, height: size, borderRadius: radius, overflow: 'hidden', flexDirection: 'row', flexWrap: 'wrap' }}>
       {four.map((k, i) => <Cover key={i} cover={k} size={q} radius={0} />)}

@@ -1,10 +1,12 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ReactNode } from 'react';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Tabs, BottomTabBarProps } from 'expo-router/js-tabs';
 import { BlurView } from 'expo-blur';
 import { Icon, IconName } from '@/components/Icon';
 import { MiniPlayer } from '@/components/MiniPlayer';
 import { tap } from '@/components/ui';
 import { colors } from '@/theme';
+import { readable } from '@/lib/layout';
 
 const tabs: Record<string, { label: string; icon: IconName }> = {
   index: { label: 'Dinle', icon: 'listen' },
@@ -13,12 +15,13 @@ const tabs: Record<string, { label: string; icon: IconName }> = {
   search: { label: 'Ara', icon: 'search' },
 };
 
-function TabBar({ state, navigation, insets }: BottomTabBarProps) {
+function TabBar({ state, emitter, navigateToTab, insets }: BottomTabBarProps) {
   return (
     <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}>
       <MiniPlayer />
-      <BlurView intensity={80} tint="systemChromeMaterialLight" style={{ borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.separator }}>
-        <View style={{ flexDirection: 'row', paddingTop: 8, paddingBottom: Math.max(insets.bottom, 8) }}>
+      {/* Android's blur is see-through without a native blur target: content showed behind the labels. Solid there. */}
+      <BarSurface>
+        <View style={{ ...readable, flexDirection: 'row', paddingTop: 8, paddingBottom: Math.max(insets.bottom, 8) }}>
           {state.routes.map((route, i) => {
             const meta = tabs[route.name];
             if (!meta) return null;
@@ -32,8 +35,8 @@ function TabBar({ state, navigation, insets }: BottomTabBarProps) {
                 accessibilityLabel={meta.label}
                 onPress={() => {
                   tap();
-                  const e = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-                  if (!focused && !e.defaultPrevented) navigation.navigate(route.name);
+                  const e = emitter.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+                  if (!focused && !e.defaultPrevented) navigateToTab(route.key);
                 }}
                 style={{ flex: 1, alignItems: 'center', gap: 3, minHeight: 44 }}
               >
@@ -43,9 +46,16 @@ function TabBar({ state, navigation, insets }: BottomTabBarProps) {
             );
           })}
         </View>
-      </BlurView>
+      </BarSurface>
     </View>
   );
+}
+
+const edge = { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.separator };
+
+function BarSurface({ children }: { children: ReactNode }) {
+  if (Platform.OS === 'ios') return <BlurView intensity={80} tint="systemChromeMaterialLight" style={edge}>{children}</BlurView>;
+  return <View style={[edge, { backgroundColor: colors.bg }]}>{children}</View>;
 }
 
 export default function TabsLayout() {

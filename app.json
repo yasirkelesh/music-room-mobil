@@ -10,6 +10,9 @@
       "supportsTablet": false,
       "bundleIdentifier": "com.musicroom.app",
       "infoPlist": {
+        "UIBackgroundModes": [
+          "audio"
+        ],
         "NSLocationWhenInUseUsageDescription": "Yakındaki müzik odalarını ve partileri bulmak için konumunu kullanırız."
       }
     },
@@ -20,17 +23,41 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.musicroom.app",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "scheme": "musicroom",
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "enableBackgroundPlayback": true
+        }
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "275d6ea9-c099-4913-a02c-586f3a9a7318"
+      }
+    },
+    "owner": "mukeles"
   }
 }

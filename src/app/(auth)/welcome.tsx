@@ -1,6 +1,5 @@
 import { Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { Cover } from '@/components/Cover';
 import { Disc } from '@/components/Disc';
 import { Orbit } from '@/components/Motion';
@@ -13,7 +12,6 @@ const ring: CoverKey[] = ['moons', 'summer', 'laundry', 'slowmo', 'dialup'];
 export default function Welcome() {
   return (
     <Screen dark>
-      <StatusBar style="light" />
       <View style={{ height: 360, marginTop: 40, marginHorizontal: -20, alignItems: 'center', justifyContent: 'center' }}>
         <Orbit
           diameter={340}

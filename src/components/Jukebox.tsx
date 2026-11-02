@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated, {
   FadeInDown,
@@ -10,12 +10,14 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { covers, CoverKey, slotCode, Track } from '@/data/mock';
+import { formatTime, slotCode, Track } from '@/data/mock';
+import { usePlayer, usePlayerClock } from '@/state/player';
+import { paletteOf } from '@/lib/tracks';
 import { colors, type } from '@/theme';
 import { Cover } from './Cover';
 import { Disc } from './Disc';
 import { Icon } from './Icon';
-import { tap } from './ui';
+import { SeekBar, tap } from './ui';
 
 /* ---------- turntable ---------- */
 
@@ -36,35 +38,87 @@ function Tonearm({ down }: { down: boolean }) {
   );
 }
 
-export function Turntable({ record, code, playing, onToggle }: { record?: Track; code?: string; playing: boolean; onToggle: () => void }) {
+/**
+ * The deck. `record` sits on the platter and spins while `playing`; the arm drops onto it. Optional
+ * `progress` draws how far into the record we are, `onNext` adds a skip button next to play.
+ */
+export function Turntable({ record, code, caption, playing, spinning = playing, onToggle, onNext, onPrev, progress, empty = 'Raftan bir plak seç' }: {
+  record?: Track; code?: string; caption?: string; playing: boolean; spinning?: boolean; onToggle: () => void; onNext?: () => void; onPrev?: () => void; progress?: number; empty?: string;
+}) {
   return (
     <View style={{ height: 180, borderRadius: 20, backgroundColor: colors.card }}>
       <View style={{ position: 'absolute', left: 20, top: 12, width: 156, height: 156, borderRadius: 78, backgroundColor: colors.chrome }} />
       {record && (
         // keyed by record: a new pick remounts and "drops in" from the shelf below
         <Animated.View key={record.id} entering={FadeInDown.springify().damping(15)} style={{ position: 'absolute', left: 20, top: 12 }}>
-          <Disc cover={record.cover} size={156} finish="vinyl" label={0.41} spinning={playing} duration={1800} holeColor={colors.card} />
+          <Disc cover={record.cover} size={156} finish="vinyl" label={0.41} spinning={spinning} duration={1800} holeColor={colors.card} />
         </Animated.View>
       )}
       <Tonearm down={!!record && playing} />
-      <View style={{ position: 'absolute', left: 218, top: 16, right: 16, bottom: 16 }}>
+      {progress !== undefined && record && (
+        <View style={{ position: 'absolute', left: 20, right: 20, bottom: 6, height: 2, borderRadius: 1, backgroundColor: colors.track }}>
+          <View style={{ width: `${Math.round(Math.max(0, Math.min(1, progress)) * 100)}%`, height: 2, borderRadius: 1, backgroundColor: colors.label }} />
+        </View>
+      )}
+      {/* text and transport in their own boxes right of the tonearm (x≈189–203): together in one column
+          the three buttons (136pt) did not fit the ~120pt left on a 375pt-wide iPhone */}
+      <View style={{ position: 'absolute', left: 218, top: 16, right: 14, bottom: 68 }}>
         {record ? (
           <>
-            <Text style={[type.numeric, { fontSize: 30, fontWeight: '600' }]}>{code}</Text>
-            <Text style={[type.callout, { fontWeight: '600', marginTop: 8 }]} numberOfLines={2}>{record.title}</Text>
-            <Text style={[type.footnote, { color: colors.secondary }]}>{record.artist}</Text>
+            {code ? <Text style={[type.numeric, { fontSize: 30, fontWeight: '600' }]}>{code}</Text> : null}
+            {caption ? <Text style={[type.caption, { color: colors.secondary, fontWeight: '600', letterSpacing: 0.6 }]} numberOfLines={1}>{caption.toLocaleUpperCase('tr-TR')}</Text> : null}
+            <Text style={[type.callout, { fontWeight: '600', marginTop: code ? 8 : 4 }]} numberOfLines={code ? 1 : 2}>{record.title}</Text>
+            <Text style={[type.footnote, { color: colors.secondary }]} numberOfLines={1}>{record.artist}</Text>
           </>
         ) : (
-          <Text style={[type.subhead, { color: colors.secondary }]}>Raftan bir plak seç</Text>
+          <Text style={[type.subhead, { color: colors.secondary }]} numberOfLines={4}>{empty}</Text>
         )}
+      </View>
+      <View style={{ position: 'absolute', left: 208, right: 12, bottom: 14, height: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+        {onPrev && record && (
+          <Pressable accessibilityRole="button" accessibilityLabel="Önceki plak ya da başa sar" hitSlop={8} onPress={() => { tap(); onPrev(); }}
+            style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: colors.label, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="prev" size={12} />
+          </Pressable>
+        )}
+        {/* an empty deck has nothing to play: the button reads as off, not as a dead control */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={playing ? 'Duraklat' : 'Çal'}
+          accessibilityState={{ disabled: !record }}
+          disabled={!record}
           onPress={() => { tap(); onToggle(); }}
-          style={{ marginTop: 'auto', width: 48, height: 48, borderRadius: 24, backgroundColor: colors.label, alignItems: 'center', justifyContent: 'center' }}
+          style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: record ? colors.label : colors.disabled, alignItems: 'center', justifyContent: 'center' }}
         >
-          <Icon name={playing ? 'pause' : 'play'} size={18} color={colors.white} />
+          <Icon name={playing ? 'pause' : 'play'} size={17} color={colors.white} />
         </Pressable>
+        {onNext && record && (
+          <Pressable accessibilityRole="button" accessibilityLabel="Sonraki plak" hitSlop={8} onPress={() => { tap(); onNext(); }}
+            style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: colors.label, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="next" size={12} />
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Where the needle is, and a way to move it: tap or drag along the line; times follow the finger and
+ * the player seeks on release.
+ */
+export function SeekRow() {
+  const player = usePlayer();
+  const { position, duration } = usePlayerClock();
+  const [scrub, setScrub] = useState<number | null>(null);
+  const total = duration || player.track?.duration || 0;
+  const shown = scrub !== null ? scrub * total : position;
+  return (
+    <View style={{ gap: 6 }}>
+      <SeekBar ratio={total > 0 ? Math.min(1, position / total) : 0} onSeek={(r) => { if (total > 0) player.seek(r * total); }} onScrub={setScrub} dot={colors.label} />
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+        <Text style={[type.caption, type.numeric, { color: colors.secondary, fontWeight: '600' }]}>{formatTime(shown)}</Text>
+        <Text style={[type.caption, type.numeric, { color: colors.secondary }]}>{total > 0 ? formatTime(shown - total) : '–:––'}</Text>
       </View>
     </View>
   );
@@ -77,7 +131,7 @@ export type ShelfItem = { id: string; track: Track; heldBy?: string };
 function Spine({ item, index, state, onPress, isNew }: {
   item: ShelfItem; index: number; state: 'idle' | 'deck' | 'mine' | 'held'; onPress: () => void; isNew: boolean;
 }) {
-  const art = covers[item.track.cover as CoverKey];
+  const art = paletteOf(item.track);
   const lift = useSharedValue(0);
   useEffect(() => {
     lift.value = withSpring(state === 'mine' ? -18 : state === 'held' ? -10 : 0, { damping: 14 });
@@ -87,9 +141,9 @@ function Spine({ item, index, state, onPress, isNew }: {
   if (state === 'deck') {
     // empty slot: the record is on the turntable
     return (
-      <View style={{ width: 30, height: 150, borderRadius: 3, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.label, alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
+      <View accessible accessibilityLabel={`${slotCode(index)}, pikapta`} style={{ width: 30, height: 150, borderRadius: 3, borderWidth: 1, borderStyle: 'dashed', borderColor: colors.label, alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
         <Text style={[type.caption, type.numeric, { fontWeight: '600', fontSize: 11 }]}>{slotCode(index)}</Text>
-        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.label }} />
+        <Icon name="play" size={10} />
       </View>
     );
   }

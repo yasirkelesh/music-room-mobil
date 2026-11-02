@@ -1,10 +1,6 @@
-import { Stack } from 'expo-router';
+import { AppStack } from '@/components/AppStack';
 import { colors } from '@/theme';
 
 export default function AuthLayout() {
-  return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }}>
-      <Stack.Screen name="welcome" options={{ contentStyle: { backgroundColor: colors.darkBg } }} />
-    </Stack>
-  );
+  return <AppStack bg={colors.bg} routes={[{ name: 'welcome', bg: colors.darkBg }]} />;
 }
