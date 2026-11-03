@@ -17,7 +17,7 @@ import { FormError, Pill } from '@/components/ui';
 import { Track, formatTime } from '@/data/mock';
 import { useAsync } from '@/lib/useAsync';
 import { paletteOf, useTracks } from '@/lib/tracks';
-import { useRoom } from '@/lib/useRoom';
+import { Place, useRoom } from '@/lib/useRoom';
 import { useUserNames } from '@/lib/userNames';
 import { usePlayer, usePlayerClock } from '@/state/player';
 import { colors, field, type } from '@/theme';
@@ -133,7 +133,7 @@ export default function Party() {
   const rowMenu = (q: QueueEntry, t: Track) => {
     const items: Action[] = [];
     // The device playing the party may override the votes once.
-    if (room.isMine) items.push({ label: 'Şimdi çal', icon: 'play', run: () => room.jumpTo(q.suggestionId) });
+    if (room.isMine || room.isController) items.push({ label: 'Şimdi çal', icon: 'play', run: () => room.jumpTo(q.suggestionId) });
     items.push({ label: q.callerVoted ? 'Oyumu geri al' : 'Oy ver', icon: 'up', run: () => room.toggleVote(q) });
     if (canRemove(q)) items.push({ label: 'Sıradan kaldır', icon: 'close', destructive: true, run: () => room.removeSuggestion(q.suggestionId) });
     sheet({ title: t.title, subtitle: t.artist, cover: t.cover }, items);
@@ -172,9 +172,9 @@ export default function Party() {
               width={width}
               inner={inner}
               outer={outer}
-              spinning={!!room.session && (!room.isMine || player.playing)}
+              spinning={!!room.session && (!(room.isMine || room.following) || player.playing)}
               onSelect={(st) => { Haptics.selectionAsync().catch(() => {}); setSelected(st.id); }}
-              center={room.isMine ? (
+              center={room.isMine || room.following ? (
                 <ProgressRing size={discSize + 22} ratio={total > 0 ? position / total : 0}>
                   <Disc cover={nowT?.cover ?? 'dialup'} size={discSize} spinning={player.playing && !player.buffering} label={0.5} holeColor={colors.black} glow={{ color: glow, radius: 40, opacity: 0.5 }} />
                 </ProgressRing>
@@ -214,22 +214,49 @@ export default function Party() {
             </View>
           ) : (
             <View style={{ marginTop: 18, alignItems: 'center', gap: 10 }}>
-              {room.session && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Icon name="speaker" size={14} color={dark.sub} />
-                  <Text style={[type.footnote, { color: dark.sub }]}>Başka bir cihazda çalıyor</Text>
+              {room.session && room.following && (
+                <View style={{ alignSelf: 'stretch', paddingHorizontal: 4 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={[type.caption, type.numeric, { color: dark.sub }]}>{formatTime(position)}</Text>
+                    <Text style={[type.caption, type.numeric, { color: dark.sub }]}>{total > 0 ? formatTime(position - total) : '–:––'}</Text>
+                  </View>
                 </View>
               )}
-              {room.session ? (
-                <DarkButton title="Bu cihazda çal" icon="play" style={{ alignSelf: 'stretch', marginHorizontal: 24 }} onPress={room.startPlaying} />
-              ) : (
+              {room.session && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 24 }}>
+                  <Icon name={room.following ? 'listen' : 'speaker'} size={14} color={dark.sub} />
+                  <Text style={[type.footnote, { color: dark.sub, textAlign: 'center' }]}>
+                    {room.following ? 'Kurucuyla aynı anda senin telefonunda da çalıyor'
+                      : room.place === 'here' ? 'Kurucunun cihazında çalıyor · aynı ortamdasın, telefonun sessiz'
+                        : 'Kurucunun cihazında çalıyor'}
+                  </Text>
+                </View>
+              )}
+              {room.session && room.isController && (
+                <View style={{ alignSelf: 'stretch', marginHorizontal: 24, gap: 8 }}>
+                  <DarkButton title="Sıradakine geç" icon="next" onPress={room.advance} />
+                  <Text style={[type.caption, { color: dark.faint, textAlign: 'center' }]}>Aux sende · sıradakine geçebilir, basılı tutup istediğin şarkıyı çaldırabilirsin</Text>
+                </View>
+              )}
+              {room.session && room.place && (
+                <DarkButton
+                  title={room.place === 'here' ? 'Uzaktayım, telefonumda çal' : 'Aynı ortamdayım, sustur'}
+                  icon={room.place === 'here' ? 'listen' : 'speaker'}
+                  style={{ alignSelf: 'stretch', marginHorizontal: 24 }}
+                  onPress={() => room.setPlace(room.place === 'here' ? 'away' : 'here')} />
+              )}
+              {room.session ? (room.isOwner && (
+                <Pressable accessibilityRole="button" hitSlop={8} onPress={room.startPlaying} style={({ pressed }) => ({ minHeight: 36, justifyContent: 'center', opacity: pressed ? 0.5 : 1 })}>
+                  <Text style={[type.footnote, { color: dark.faint }]}>Hoparlörü bu cihaza taşı</Text>
+                </Pressable>
+              )) : (
                 <Pill title="Partiyi bu cihazda başlat" variant="light" height={50} style={{ alignSelf: 'stretch', marginHorizontal: 24 }}
                   left={<Icon name="play" size={16} color={colors.black} />}
                   onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); room.startPlaying(); }} />
               )}
             </View>
           )}
-          {room.isMine && player.error && <Text accessibilityRole="alert" style={[type.footnote, { color: '#FF8A7A', textAlign: 'center', marginTop: 8 }]}>{player.error}</Text>}
+          {(room.isMine || room.following) && player.error && <Text accessibilityRole="alert" style={[type.footnote, { color: '#FF8A7A', textAlign: 'center', marginTop: 8 }]}>{player.error}</Text>}
 
           {room.notice && (
             <Animated.View entering={FadeInDown.duration(250)} exiting={FadeOut} style={{ marginTop: 18, borderRadius: 16, backgroundColor: dark.cardStrong, paddingVertical: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -285,7 +312,7 @@ export default function Party() {
               );
             })}
           </View>
-          {upNext.length > 0 && <Text style={[type.caption, { color: dark.faint, textAlign: 'center', marginTop: 12 }]}>{room.isMine ? 'Hemen çalmak ya da kaldırmak için basılı tut' : 'Seçenekler için basılı tut'}</Text>}
+          {upNext.length > 0 && <Text style={[type.caption, { color: dark.faint, textAlign: 'center', marginTop: 12 }]}>{room.isMine || room.isController ? 'Hemen çalmak ya da kaldırmak için basılı tut' : 'Seçenekler için basılı tut'}</Text>}
 
         </ScrollView>
 
@@ -297,9 +324,30 @@ export default function Party() {
         </SafeAreaView>
       </SafeAreaView>
 
+      <PlaceSheet visible={room.placeAsk && !room.isMine && !!room.session} onPick={room.setPlace} />
       <CodeSheet mode="enter" visible={!!room.codePrompt} onDone={(c) => room.codePrompt?.(c)} />
       <CodeSheet mode="show" visible={!!shownCode} code={shownCode ?? ''} partyName={ev.name} onDone={() => setShownCode(null)} />
     </View>
+  );
+}
+
+/** Asked once per party when the app cannot tell from the venue: is this guest in the room with the host? */
+function PlaceSheet({ visible, onPick }: { visible: boolean; onPick: (p: Place) => void }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={() => onPick('here')}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end', padding: 16 }}>
+        <SafeAreaView edges={['bottom']} style={{ borderRadius: 24, backgroundColor: '#1C1C1E', padding: 22, gap: 12 }}>
+          <Icon name="speaker" color={colors.white} />
+          <Text style={[type.title2, { color: colors.white }]}>Kurucuyla aynı yerde misin?</Text>
+          <Text style={[type.subhead, { color: dark.sub, lineHeight: 20 }]}>
+            Aynı ortamdaysan müzik kurucunun hoparlöründen çalar, telefonun sessiz kalır. Uzaktaysan aynı şarkı aynı anda senin telefonunda da çalar.
+          </Text>
+          <Pill title="Evet, aynı ortamdayım" variant="light" height={50} style={{ marginTop: 6 }} onPress={() => onPick('here')} />
+          <DarkButton title="Hayır, uzaktan dinleyeceğim" icon="listen" height={50} onPress={() => onPick('away')} />
+          <Text style={[type.caption, { color: dark.faint, textAlign: 'center' }]}>Sonra parti ekranından değiştirebilirsin.</Text>
+        </SafeAreaView>
+      </View>
+    </Modal>
   );
 }
 

@@ -5,6 +5,7 @@ import { Disc } from '@/components/Disc';
 import { Orbit } from '@/components/Motion';
 import { Pill, Screen, TextButton } from '@/components/ui';
 import { CoverKey } from '@/data/mock';
+import { displayAddress, isDefaultServer } from '@/lib/serverAddress';
 import { colors, type } from '@/theme';
 
 const ring: CoverKey[] = ['moons', 'summer', 'laundry', 'slowmo', 'dialup'];
@@ -38,6 +39,9 @@ export default function Welcome() {
         <Text style={{ fontSize: 12, lineHeight: 17, color: colors.darkSecondary, textAlign: 'center', marginTop: 4 }}>
           Devam ederek Kullanım Koşulları’nı ve Gizlilik Politikası’nı kabul etmiş olursun.
         </Text>
+        <View style={{ alignItems: 'center' }}>
+          <TextButton title={isDefaultServer() ? 'Sunucu ayarı' : `Sunucu: ${displayAddress()}`} dark muted size={13} onPress={() => router.push('/server')} />
+        </View>
       </View>
     </Screen>
   );

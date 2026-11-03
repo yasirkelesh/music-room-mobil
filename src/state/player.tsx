@@ -29,13 +29,21 @@ type Player = {
   /**
    * Play one track on behalf of a server playback session (a party). The server picks what comes next:
    * when the track ends, or "next" is pressed, the matching handler asks it instead of the local queue.
+   * `at` starts the track that many seconds in (a guest joining a song already playing elsewhere).
    */
-  playControlled: (track: Track, label: string, handlers: Controller) => void;
+  playControlled: (track: Track, label: string, handlers: Controller, at?: number) => void;
   /** True while a server session drives playback (no local queue, no "previous"). */
   controlled: boolean;
   /** Swap in fresher metadata (title, artwork) for the track already loaded, without restarting it. */
   refreshTrack: (track: Track) => void;
   toggle: () => void;
+  /** Explicit pause / resume, for following someone else's player (toggle would guess). */
+  pause: () => void;
+  resume: () => void;
+  /** Current position in seconds, read on demand (the clock context re-renders twice a second). */
+  getPosition: () => number;
+  /** Bumped on every seek, so a party host can tell the guests the playhead jumped. */
+  seekTick: number;
   next: () => void;
   prev: () => void;
   seek: (seconds: number) => void;
@@ -82,17 +90,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const clockRef = useRef<Clock>({ position: 0, duration: 0 });
   useEffect(() => { live.current = { list, index }; clockRef.current = clock; });
 
-  const start = useCallback((i: number) => {
+  const start = useCallback((i: number, at = 0) => {
     const t = live.current.list[i];
     if (!t) return;
     live.current = { ...live.current, index: i };
     setIndex(i);
     setError(null);
     setBuffering(true);
-    setClock({ position: 0, duration: t.duration });
+    setClock({ position: at, duration: t.duration });
     wanted.current = true;
-    engine.current?.load(t.id);
+    engine.current?.load(t.id, at);
   }, []);
+  const [seekTick, setSeekTick] = useState(0);
 
   const stop = useCallback(() => {
     controller.current = null;
@@ -112,7 +121,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   const prev = useCallback(() => {
     const { index: i } = live.current;
-    if (controller.current || clockRef.current.position > 3 || i === 0) { engine.current?.seek(0); setClock((c) => ({ ...c, position: 0 })); }
+    if (controller.current || clockRef.current.position > 3 || i === 0) { engine.current?.seek(0); setClock((c) => ({ ...c, position: 0 })); setSeekTick((n) => n + 1); }
     else start(i - 1);
   }, [start]);
 
@@ -156,14 +165,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     start(at);
   }, [start]);
 
-  const playControlled = useCallback((track: Track, name: string, handlers: Controller) => {
+  const playControlled = useCallback((track: Track, name: string, handlers: Controller, at = 0) => {
     controller.current = handlers;
     setControlled(true);
     live.current = { list: [track], index: 0 };
     setList([track]);
     setLabel(name);
     setSource(null);
-    start(0);
+    start(0, at);
   }, [start]);
 
   const refreshTrack = useCallback((t: Track) => {
@@ -194,7 +203,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const seek = useCallback((s: number) => {
     engine.current?.seek(s);
     setClock((c) => ({ ...c, position: s }));
+    setSeekTick((n) => n + 1);
   }, []);
+
+  const pause = useCallback(() => { wanted.current = false; engine.current?.pause(); setPlaying(false); }, []);
+  const resume = useCallback(() => {
+    if (!live.current.list.length) return;
+    wanted.current = true;
+    engine.current?.play();
+    setPlaying(true);
+  }, []);
+  const getPosition = useCallback(() => clockRef.current.position, []);
 
   const value = useMemo<Player>(() => ({
     track: list[index] ?? null,
@@ -204,8 +223,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     place: list.length ? { index: index + 1, total: list.length } : null,
     queue: list.slice(index + 1),
     error,
-    playList, playControlled, controlled, refreshTrack, source, toggle, next, prev, seek, stop,
-  }), [list, index, playing, buffering, label, source, error, controlled, playList, playControlled, refreshTrack, toggle, next, prev, seek, stop]);
+    playList, playControlled, controlled, refreshTrack, source, toggle, pause, resume, getPosition, seekTick, next, prev, seek, stop,
+  }), [list, index, playing, buffering, label, source, error, controlled, playList, playControlled, refreshTrack, toggle, pause, resume, getPosition, seekTick, next, prev, seek, stop]);
 
   return (
     <Ctx.Provider value={value}>

@@ -7,7 +7,6 @@ export default function PartyLayout() {
       bg={colors.darkBg}
       routes={[
         { name: 'rules', bg: colors.bg },
-        { name: 'pick', modal: true, bg: colors.bg },
         // add songs on top of the room, so the queue is one swipe away
         { name: 'suggest', modal: true, bg: '#111' },
       ]}

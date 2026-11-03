@@ -16,7 +16,7 @@ forwardConsole();
  * Dark-surfaced screens get light status-bar icons, every other screen dark ones. Decided here from the
  * route instead of per screen: a stacked screen's <StatusBar> stays mounted underneath and would win.
  */
-const DARK = [/^\/welcome$/, /^\/party\/(?!rules|pick)[^/]+$/];
+const DARK = [/^\/welcome$/, /^\/party\/(?!rules)[^/]+$/];
 
 export default function RootLayout() {
   const path = usePathname();
@@ -35,6 +35,10 @@ export default function RootLayout() {
               { name: '(tabs)', fade: true },
               { name: 'now-playing', modal: true },
               { name: 'list/new', modal: true },
+              // opened from a track's menu over any tab: a sheet, so pulling it down closes it
+              { name: 'list/pick', modal: true },
+              { name: 'party-pick', modal: true },
+              { name: 'server', modal: true },
               { name: 'list/add', modal: true, bg: '#111' },
               { name: 'list/settings', modal: true, bg: '#111' },
             ]}

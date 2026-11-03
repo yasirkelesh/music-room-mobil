@@ -4,7 +4,7 @@
 import { AppState } from 'react-native';
 import { HttpTransportType, HubConnection, HubConnectionBuilder, HubConnectionState, ILogger, LogLevel } from '@microsoft/signalr';
 import { devlog } from '@/lib/devlog';
-import { BASE_URL, clientContext, refreshSession, session } from './client';
+import { clientContext, getBaseUrl, refreshSession, session } from './client';
 import type { Uuid } from './types';
 
 export type PlaylistEvent =
@@ -18,7 +18,9 @@ export type EventHubEvent =
   | { kind: 'VoteChanged'; eventId: Uuid; suggestionId: Uuid; votes: number }
   | { kind: 'QueueReordered'; eventId: Uuid; removedSuggestionId: Uuid };
 
-export type NowPlayingEvent = { sourceId: Uuid; sessionId: Uuid; nowPlayingId: Uuid | null };
+export type NowPlayingEvent = { sourceId: Uuid; sessionId: Uuid; nowPlayingId: Uuid | null; nowPlayingStartedAtUtc?: string | null };
+/** The playing device's playhead (docs/api/JAM_SYNC.md): on play, pause, seek and every ~15 s while playing. */
+export type PositionEvent = { sourceId: Uuid; sessionId: Uuid; nowPlayingId: Uuid | null; positionMs: number; positionAtUtc: string; paused: boolean };
 export type ControlEvent =
   | { kind: 'ControlGranted'; deviceId: Uuid; ownerId: Uuid; controllerUserId: Uuid }
   | { kind: 'ControlRevoked'; deviceId: Uuid; ownerId: Uuid }
@@ -43,7 +45,7 @@ function build(path: string): HubConnection {
   // The handshake carries the client context in the query string (a WebSocket cannot set headers).
   const q = new URLSearchParams({ platform: clientContext.platform, device: clientContext.device, appVersion: clientContext.appVersion });
   return new HubConnectionBuilder()
-    .withUrl(`${BASE_URL}${path}?${q}`, {
+    .withUrl(`${getBaseUrl()}${path}?${q}`, {
       transport: HttpTransportType.WebSockets,
       skipNegotiation: true,
       accessTokenFactory: async () => {
@@ -103,12 +105,13 @@ export const realtime = {
       NowPlayingChanged: () => {},
     }, onResync),
 
-  event: (eventId: Uuid, onEvent: (e: EventHubEvent) => void, onNowPlaying: (e: NowPlayingEvent) => void, onResync: () => void) =>
+  event: (eventId: Uuid, onEvent: (e: EventHubEvent) => void, onNowPlaying: (e: NowPlayingEvent) => void, onResync: () => void, onPosition?: (e: PositionEvent) => void) =>
     subscribe('/hubs/events', { method: 'JoinEvent', arg: eventId }, {
       TrackSuggested: (p) => onEvent({ kind: 'TrackSuggested', ...lc(p) } as EventHubEvent),
       VoteChanged: (p) => onEvent({ kind: 'VoteChanged', ...lc(p) } as EventHubEvent),
       QueueReordered: (p) => onEvent({ kind: 'QueueReordered', ...lc(p) } as EventHubEvent),
       NowPlayingChanged: (p) => onNowPlaying(p as NowPlayingEvent),
+      PlaybackPositionChanged: (p) => onPosition?.(p as PositionEvent),
     }, onResync),
 
   /** Per-account group, joined by the server on connect: no invocable methods. */

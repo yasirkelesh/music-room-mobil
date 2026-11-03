@@ -105,6 +105,14 @@ export type ControlGrant = {
 export type PlaybackSession = {
   sessionId: Uuid; deviceId: Uuid; sourceType: PlaybackSourceType; sourceId: Uuid;
   nowPlayingId: Uuid | null; startedAtUtc: string; endedAtUtc: string | null; version: number;
+  // Party sync (docs/api/JAM_SYNC.md). Optional: an API without them still works, guests just start
+  // each song from the top.
+  /** When the current item began playing. */
+  nowPlayingStartedAtUtc?: string | null;
+  /** Last playhead the playing device reported, and when. */
+  positionMs?: number | null;
+  positionAtUtc?: string | null;
+  paused?: boolean | null;
 };
 
 /* ---------- errors ---------- */

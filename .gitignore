@@ -30,8 +30,10 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
-.env*.local
+# local env files: anything secret lives here, never in git (.env.example is the template)
+.env
+.env.*
+!.env.example
 
 # typescript
 *.tsbuildinfo

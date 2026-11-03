@@ -131,7 +131,7 @@ export default function Handover() {
             })}
           </Group>
           <Text style={[type.footnote, { color: colors.secondary, marginTop: 10, marginHorizontal: 16, lineHeight: 18 }]}>
-            Devrettiğin kişi bu cihazda sıradakine geçebilir. Sesi kapatamaz; istediğin an geri alabilirsin.
+            Devrettiğin kişi parti ekranından bu cihazda sıradakine geçebilir ya da sıradan istediği şarkıyı çaldırabilir. Sesi kapatamaz; istediğin an geri alabilirsin.
           </Text>
 
           <FormError message={error} />

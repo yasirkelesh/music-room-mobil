@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { api, ApiError, refreshSession, session } from '@/api/client';
 import type { OwnProfile, TokenPair } from '@/api/types';
 import { forgetDevice } from '@/lib/device';
+import { loadServerAddress } from '@/lib/serverAddress';
 import { googleCode } from '@/lib/social';
 
 const KEY = 'musicroom.refreshToken';
@@ -25,7 +26,8 @@ type Auth = {
   signIn: (email: string, password: string) => Promise<OwnProfile | null>;
   /** Google's consent page, then the API's tokens. `undefined` when the user closed the page. An account is created on first use. */
   signInWithGoogle: () => Promise<OwnProfile | null | undefined>;
-  signOut: () => Promise<void>;
+  /** `localOnly`: forget the session without telling the server (it is unreachable, or being switched away from). */
+  signOut: (opts?: { localOnly?: boolean }) => Promise<void>;
   reloadMe: () => Promise<OwnProfile>;
 };
 
@@ -70,6 +72,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let alive = true;
     (async () => {
+      // the tester's chosen back-end, before the first request goes anywhere
+      await loadServerAddress();
       const stored = await store.get();
       if (!stored) { if (alive) setStatus('signedOut'); return; }
       session.setRefreshOnly(stored);
@@ -96,8 +100,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return finish(await api.auth.signInSocial(code));
   }, [finish]);
 
-  const signOut = useCallback(async () => {
-    try { await api.auth.signOut(); } catch (e) { if (!(e instanceof ApiError)) throw e; }
+  const signOut = useCallback(async (opts?: { localOnly?: boolean }) => {
+    if (!opts?.localOnly) {
+      try { await api.auth.signOut(); } catch (e) { if (!(e instanceof ApiError)) throw e; }
+    }
     session.set(null);
     forgetDevice();
     await store.clear();

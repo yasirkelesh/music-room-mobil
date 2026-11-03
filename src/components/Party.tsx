@@ -6,7 +6,7 @@ import * as Haptics from 'expo-haptics';
 import Animated, { cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { colors, field, type } from '@/theme';
-import { Icon } from './Icon';
+import { Icon, IconName } from './Icon';
 import { upperTr } from './ui';
 
 export const dark = {
@@ -160,7 +160,7 @@ export function RoundButton({ icon, label, onPress, size = 52, filled }: { icon:
 }
 
 /** Translucent full-width button for dark screens (the light one is `Pill variant="light"`). */
-export function DarkButton({ title, onPress, icon, height = 50, style }: { title: string; onPress: () => void; icon?: 'play' | 'plus'; height?: number; style?: StyleProp<ViewStyle> }) {
+export function DarkButton({ title, onPress, icon, height = 50, style }: { title: string; onPress: () => void; icon?: IconName; height?: number; style?: StyleProp<ViewStyle> }) {
   return (
     <Pressable accessibilityRole="button" onPress={() => { Haptics.selectionAsync().catch(() => {}); onPress(); }}
       style={({ pressed }) => [{

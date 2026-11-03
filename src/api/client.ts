@@ -1,5 +1,7 @@
 // Typed client for MusicRoom.WebAPI v1 (see music-room-openapi.json).
-// Set EXPO_PUBLIC_API_URL in a .env file; on a physical device use the Mac's LAN address, not localhost.
+// The build's default comes from EXPO_PUBLIC_API_URL (.env / eas.json); on a physical device use the
+// computer's LAN address, not localhost. The app can point elsewhere at runtime (Sunucu adresi screen,
+// src/lib/serverAddress.ts), which is what testers use against their own back-end.
 
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
@@ -7,7 +9,13 @@ import { Platform } from 'react-native';
 import type * as T from './types';
 
 const root = process.env.EXPO_PUBLIC_API_URL ?? (Platform.OS === 'android' ? 'http://10.0.2.2:8085' : 'http://localhost:8085');
-export const BASE_URL = root.replace(/\/+$/, '');
+/** The address this build was made for. */
+export const DEFAULT_BASE_URL = root.replace(/\/+$/, '');
+let baseUrl = DEFAULT_BASE_URL;
+/** The back-end every request and hub connection goes to right now. */
+export const getBaseUrl = () => baseUrl;
+/** Point the app at another back-end (null: back to the build's default). Existing sessions belong to the old one. */
+export const setBaseUrl = (url: string | null) => { baseUrl = url ? url.replace(/\/+$/, '') : DEFAULT_BASE_URL; };
 
 /* ---------- client identity ----------
  * The API refuses any POST/PUT/PATCH/DELETE (and the SignalR handshake) that lacks these three
@@ -84,7 +92,7 @@ export function refreshSession(): Promise<boolean> {
   if (!refreshToken) return Promise.resolve(false);
   refreshing ??= (async () => {
     try {
-      const res = await timedFetch(`${BASE_URL}/api/v1/auth/tokens`, {
+      const res = await timedFetch(`${getBaseUrl()}/api/v1/auth/tokens`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...clientHeaders },
         body: JSON.stringify({ refreshToken }),
@@ -140,7 +148,7 @@ async function send<D>(path: string, o: Opts, retry: boolean): Promise<Res<D>> {
 
   let res: Response;
   try {
-    res = await timedFetch(`${BASE_URL}${path}${qs(o.query)}`, { method: o.method ?? 'GET', headers, body });
+    res = await timedFetch(`${getBaseUrl()}${path}${qs(o.query)}`, { method: o.method ?? 'GET', headers, body });
   } catch {
     throw new ApiError(0, null, true);
   }
@@ -282,6 +290,8 @@ export const api = {
       data(`/api/v1/events/${id}/tracks/${suggestionId}/vote`, J('PUT', presence ? { presence } : undefined)),
     unvote: (id: T.Uuid, suggestionId: T.Uuid) =>
       data(`/api/v1/events/${id}/tracks/${suggestionId}/vote`, { method: 'DELETE' }),
+    /** The party's live playback session, for anybody who may see the event. 404: nothing plays. */
+    playbackSession: (id: T.Uuid) => call<T.PlaybackSession>(`/api/v1/events/${id}/playback-session`),
     issueCode: (id: T.Uuid, ttlSeconds?: number) =>
       data<{ code: string }>(`/api/v1/events/${id}/event-codes`, J('POST', ttlSeconds ? { ttlSeconds } : undefined)),
   },
@@ -309,6 +319,9 @@ export const api = {
     jump: (id: T.Uuid, nowPlayingId: T.Uuid, etag: string) =>
       data(`/api/v1/playback-sessions/${id}`, J('PATCH', { nowPlayingId }, { ifMatch: etag })),
     stop: (id: T.Uuid) => data(`/api/v1/playback-sessions/${id}`, { method: 'DELETE' }),
+    /** The playing device says where its playhead is; the server stamps the time and tells the party. */
+    reportPosition: (id: T.Uuid, b: { positionMs: number; paused: boolean }) =>
+      data(`/api/v1/playback-sessions/${id}/position`, J('PUT', b)),
     advance: (id: T.Uuid, expectedNowPlayingId: T.Uuid | null, etag?: string) =>
       data<T.PlaybackSession>(`/api/v1/playback-sessions/${id}/advances`, J('POST', { expectedNowPlayingId }, { ifMatch: etag })),
   },
