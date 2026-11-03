@@ -1,8 +1,8 @@
 // The "add songs" sheet shared by parties and playlists.
 
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { ActivityIndicator, Keyboard, Pressable, ScrollView, Text, View } from 'react-native';
+import { router, useNavigation } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown, FadeOutDown, LinearTransition } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -29,7 +29,7 @@ export type AddOutcome = 'added' | 'exists' | { error: string };
  * A dark sheet for adding songs: search the catalog, or pick from your own playlists (which costs no
  * catalog quota). Songs already present are marked. Used by parties (suggest) and playlists (add).
  */
-export function AddSongs({ title, existing, onAdd, addedText, existsLabel = 'Eklendi', excludeListId, emptyHint }: {
+export function AddSongs({ title, existing, onAdd, addedText, existsLabel = 'Eklendi', excludeListId, emptyHint, onDone, embedded }: {
   title: string;
   /** Video ids already in the target, shown as `existsLabel` instead of an add button. */
   existing: Set<string>;
@@ -39,6 +39,10 @@ export function AddSongs({ title, existing, onAdd, addedText, existsLabel = 'Ekl
   /** Hide this playlist in "Listelerimden" (adding a list to itself). */
   excludeListId?: string;
   emptyHint: string;
+  /** "Bitti". Default: leave the sheet screen. */
+  onDone?: () => void;
+  /** Shown inside another screen's modal instead of as its own route: leaves that screen's options alone. */
+  embedded?: boolean;
 }) {
   const kb = useKeyboardHeight();
   const [tab, setTab] = useState<Tab>('search');
@@ -48,6 +52,15 @@ export function AddSongs({ title, existing, onAdd, addedText, existsLabel = 'Ekl
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastSeq = useRef(0);
   const search = useTrackSearch(q, 20);
+
+  // While typing, a drag belongs to the results: the sheet's own pull-to-close would take it first
+  // (Android: anywhere in the top part of the sheet), the list would never see it and the keyboard
+  // would stay up. With the keyboard down, pulling closes the sheet again.
+  const navigation = useNavigation();
+  // grabber + title row only: the search field and the results below must take their own touches
+  useEffect(() => { if (!embedded) navigation.setOptions({ gestureEnabled: kb === 0, gestureResponseDistance: 72 }); }, [navigation, kb, embedded]);
+  // a short result list does not scroll, so no scroll event: a vertical finger move closes the keyboard too
+  const touchY = useRef<number | null>(null);
 
   useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
 
@@ -83,7 +96,7 @@ export function AddSongs({ title, existing, onAdd, addedText, existsLabel = 'Ekl
         </View>
         <View style={{ height: 52, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text style={[type.title2, { color: colors.white }]}>{title}</Text>
-          <Pressable accessibilityRole="button" onPress={() => router.back()} hitSlop={8} style={{ height: 44, justifyContent: 'center' }}>
+          <Pressable accessibilityRole="button" onPress={onDone ?? (() => router.back())} hitSlop={8} style={{ height: 44, justifyContent: 'center' }}>
             <Text style={[type.headline, { color: colors.white }]}>Bitti</Text>
           </Pressable>
         </View>
@@ -95,7 +108,10 @@ export function AddSongs({ title, existing, onAdd, addedText, existsLabel = 'Ekl
           )}
         </View>
 
-        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false} contentContainerStyle={{ ...readable, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 + kb }}>
+        <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" onScrollBeginDrag={Keyboard.dismiss}
+          onTouchStart={(e) => { touchY.current = e.nativeEvent.pageY; }}
+          onTouchMove={(e) => { if (kb > 0 && touchY.current !== null && Math.abs(e.nativeEvent.pageY - touchY.current) > 12) { touchY.current = null; Keyboard.dismiss(); } }}
+          showsVerticalScrollIndicator={false} contentContainerStyle={{ ...readable, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 40 + kb }}>
           {tab === 'search' ? (
             <>
               {q.trim().length < 2 && <Hint text={emptyHint} />}

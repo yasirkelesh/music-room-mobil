@@ -109,6 +109,8 @@ export type PlaybackSession = {
   // each song from the top.
   /** When the current item began playing. */
   nowPlayingStartedAtUtc?: string | null;
+  /** The server's clock when it answered, to correct for this phone's own. */
+  serverNowUtc?: string;
   /** Last playhead the playing device reported, and when. */
   positionMs?: number | null;
   positionAtUtc?: string | null;

@@ -319,8 +319,11 @@ export const api = {
     jump: (id: T.Uuid, nowPlayingId: T.Uuid, etag: string) =>
       data(`/api/v1/playback-sessions/${id}`, J('PATCH', { nowPlayingId }, { ifMatch: etag })),
     stop: (id: T.Uuid) => data(`/api/v1/playback-sessions/${id}`, { method: 'DELETE' }),
-    /** The playing device says where its playhead is; the server stamps the time and tells the party. */
-    reportPosition: (id: T.Uuid, b: { positionMs: number; paused: boolean }) =>
+    /**
+     * The playing device says where its playhead is in `nowPlayingId`; the server stamps the time and tells
+     * the party (a report for a track no longer playing is dropped there). At most one per second: 429.
+     */
+    reportPosition: (id: T.Uuid, b: { nowPlayingId: T.Uuid; positionMs: number; paused: boolean }) =>
       data(`/api/v1/playback-sessions/${id}/position`, J('PUT', b)),
     advance: (id: T.Uuid, expectedNowPlayingId: T.Uuid | null, etag?: string) =>
       data<T.PlaybackSession>(`/api/v1/playback-sessions/${id}/advances`, J('POST', { expectedNowPlayingId }, { ifMatch: etag })),

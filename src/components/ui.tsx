@@ -171,11 +171,13 @@ export function Row({ title, value, left, right, onPress, subtitle, height = 48 
   const content = (
     <View style={{ minHeight: height, flexDirection: 'row', alignItems: 'center', gap: space.m }}>
       {left}
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={[type.body, { color: colors.label }]}>{title}</Text>
+      {/* The title keeps its words whole; a long value gives way instead ("Sunucu adresi" was wrapping
+          letter by letter next to a long URL). With a value the title takes its natural width, capped. */}
+      <View style={value ? { flexShrink: 0, maxWidth: '55%' } : { flex: 1, minWidth: 0 }}>
+        <Text style={[type.body, { color: colors.label }]} numberOfLines={value ? 1 : undefined}>{title}</Text>
         {subtitle ? <Text style={[type.footnote, { color: colors.secondary }]} numberOfLines={1}>{subtitle}</Text> : null}
       </View>
-      {value ? <Text numberOfLines={1} ellipsizeMode="middle" style={[type.body, { color: colors.secondary, flexShrink: 1, maxWidth: '62%', textAlign: 'right' }]}>{value}</Text> : null}
+      {value ? <Text numberOfLines={1} ellipsizeMode="middle" style={[type.body, { color: colors.secondary, flex: 1, minWidth: 0, textAlign: 'right' }]}>{value}</Text> : null}
       {right}
     </View>
   );

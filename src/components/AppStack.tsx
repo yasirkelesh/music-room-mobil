@@ -16,12 +16,17 @@ export type StackRoute = {
   fade?: boolean;
 };
 
+/** How far down a sheet the pull-to-close drag may start (Android). Screens with a shorter header pass less. */
+export const SHEET_HEADER = 120;
+
 function androidOptions(r: StackRoute, bg: string): StackNavigationOptions {
   const cardStyle = { backgroundColor: r.bg ?? bg };
   if (r.fade) return { cardStyle, gestureEnabled: false, cardStyleInterpolator: CardStyleInterpolators.forFadeFromCenter };
   if (r.modal) {
-    // the drag starts anywhere in the top part of the sheet, like the iOS grabber area
-    return { ...TransitionPresets.ModalPresentationIOS, presentation: 'modal', cardStyle, gestureEnabled: true, gestureResponseDistance: 240 };
+    // The drag starts in the sheet's header (grabber, top bar, title), like the iOS grabber area. Not
+    // lower: the JS stack's pan takes touches before a scroll view does, so a list in that band would
+    // not scroll (and a drag there could not reach the keyboard-dismissing list either).
+    return { ...TransitionPresets.ModalPresentationIOS, presentation: 'modal', cardStyle, gestureEnabled: true, gestureResponseDistance: SHEET_HEADER };
   }
   return { cardStyle };
 }

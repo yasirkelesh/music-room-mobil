@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Share, Text, TextInput, View } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useNavigation, usePreventRemove } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
@@ -20,6 +20,7 @@ import { paletteOf, useTracks } from '@/lib/tracks';
 import { Place, useRoom } from '@/lib/useRoom';
 import { useUserNames } from '@/lib/userNames';
 import { usePlayer, usePlayerClock } from '@/state/player';
+import { continueInBackground } from '@/state/partyBackground';
 import { colors, field, type } from '@/theme';
 import { Action, SheetSubject, showActions } from '@/components/ActionSheet';
 import { readable, useContentWidth } from '@/lib/layout';
@@ -65,6 +66,36 @@ export default function Party() {
     return () => clearTimeout(t);
   }, [room.queue]);
   useEffect(() => { if (!selected) return; const t = setTimeout(() => setSelected(null), 3500); return () => clearTimeout(t); }, [selected]);
+
+  /*
+   * Leaving while this device is the party's speaker: ask whether the party goes on in the background
+   * or stops. Covers the close arrow, Android's back and the swipe. The blocked navigation is replayed
+   * once the guard is down (usePreventRemove reads the new value on the next render).
+   */
+  const navigation = useNavigation();
+  const [guard, setGuard] = useState(true);
+  const exit = useRef<(() => void) | null>(null);
+  const leaveWith = (go: () => void) => { exit.current = go; setGuard(false); };
+  useEffect(() => { if (!guard && exit.current) { const go = exit.current; exit.current = null; go(); } }, [guard]);
+  usePreventRemove(guard && room.isMine && player.controlled && !!room.session, ({ data }) => {
+    const s = room.session;
+    const name = room.event?.name ?? 'Parti';
+    showActions({ title: 'Partiden çıkıyorsun', subtitle: `“${name}” bu cihazda çalıyor` }, [
+      {
+        label: 'Çalmaya devam et', icon: 'play',
+        hint: 'Parti arka planda sürer: sıradaki şarkılar oylara göre kendiliğinden çalar, misafirler etkilenmez.',
+        run: () => {
+          if (s?.deviceId) continueInBackground({ eventId: id, sessionId: s.sessionId, deviceId: s.deviceId, nowPlayingId: s.nowPlayingId, name });
+          leaveWith(() => navigation.dispatch(data.action));
+        },
+      },
+      {
+        label: 'Partiyi durdur', icon: 'pause', destructive: true,
+        hint: 'Bu cihazda çalma durur; misafirler için de parti susar. Sonra yeniden başlatabilirsin.',
+        run: async () => { await room.stopPlaying(); leaveWith(() => navigation.dispatch(data.action)); },
+      },
+    ], { dark: true });
+  });
 
   if (room.loading && !room.event) return <View style={{ flex: 1, backgroundColor: colors.black }} />;
   if (!room.event) {
@@ -118,13 +149,13 @@ export default function Party() {
     if (room.isMine) items.push({ label: 'Bu cihazda çalmayı durdur', icon: 'pause', destructive: true, run: () => room.stopPlaying() });
     if (!room.isOwner) items.push({
       label: 'Partiden ayrıl', icon: 'back', destructive: true,
-      run: async () => { await room.leave(); router.back(); },
+      run: async () => { await room.leave(); leaveWith(() => router.back()); },
     });
     if (room.isOwner) items.push({
       label: 'Partiyi sil', icon: 'close', destructive: true,
       run: () => Alert.alert('Partiyi sil', `“${ev.name}” silinsin mi?`, [
         { text: 'Vazgeç', style: 'cancel' },
-        { text: 'Sil', style: 'destructive', onPress: async () => { await room.stopPlaying(); try { await api.events.remove(ev.eventId); router.back(); } catch (e) { room.setNotice(describeError(e)); } } },
+        { text: 'Sil', style: 'destructive', onPress: async () => { await room.stopPlaying(); try { await api.events.remove(ev.eventId); leaveWith(() => router.back()); } catch (e) { room.setNotice(describeError(e)); } } },
       ]),
     });
     sheet({ title: ev.name }, items);

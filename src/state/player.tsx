@@ -34,6 +34,11 @@ type Player = {
   playControlled: (track: Track, label: string, handlers: Controller, at?: number) => void;
   /** True while a server session drives playback (no local queue, no "previous"). */
   controlled: boolean;
+  /**
+   * Hand the track already playing to another driver (the party screen and its background runner pass
+   * it between them) without restarting it. Ignored unless a session drives the player.
+   */
+  setController: (handlers: Controller) => void;
   /** Swap in fresher metadata (title, artwork) for the track already loaded, without restarting it. */
   refreshTrack: (track: Track) => void;
   toggle: () => void;
@@ -175,6 +180,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     start(0, at);
   }, [start]);
 
+  const setController = useCallback((handlers: Controller) => {
+    if (controller.current) controller.current = handlers;
+  }, []);
+
   const refreshTrack = useCallback((t: Track) => {
     if (live.current.list[live.current.index]?.id !== t.id) return;
     setList((l) => l.map((x, i) => (i === live.current.index ? t : x)));
@@ -223,8 +232,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     place: list.length ? { index: index + 1, total: list.length } : null,
     queue: list.slice(index + 1),
     error,
-    playList, playControlled, controlled, refreshTrack, source, toggle, pause, resume, getPosition, seekTick, next, prev, seek, stop,
-  }), [list, index, playing, buffering, label, source, error, controlled, playList, playControlled, refreshTrack, toggle, pause, resume, getPosition, seekTick, next, prev, seek, stop]);
+    playList, playControlled, controlled, setController, refreshTrack, source, toggle, pause, resume, getPosition, seekTick, next, prev, seek, stop,
+  }), [list, index, playing, buffering, label, source, error, controlled, playList, playControlled, setController, refreshTrack, toggle, pause, resume, getPosition, seekTick, next, prev, seek, stop]);
 
   return (
     <Ctx.Provider value={value}>

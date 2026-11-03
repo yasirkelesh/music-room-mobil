@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ActionSheetHost } from '@/components/ActionSheet';
 import { AppStack } from '@/components/AppStack';
 import { ServerBanner } from '@/components/ServerBanner';
+import { PartyBackground } from '@/state/partyBackground';
 import { forwardConsole } from '@/lib/devlog';
 import { AuthProvider } from '@/state/auth';
 import { PlayerProvider } from '@/state/player';
@@ -43,6 +44,7 @@ export default function RootLayout() {
               { name: 'list/settings', modal: true, bg: '#111' },
             ]}
           />
+          <PartyBackground />
           <ServerBanner />
           <ActionSheetHost />
         </PlayerProvider>

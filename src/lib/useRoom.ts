@@ -6,6 +6,7 @@ import { ControlEvent, EventHubEvent, NowPlayingEvent, PositionEvent, realtime }
 import { EventDetail, Geofence, LicenceMode, PlaybackSession, PlaybackSourceType, QueueEntry, Uuid, VotePresence } from '@/api/types';
 import { ensureDevice } from '@/lib/device';
 import { useTracks } from '@/lib/tracks';
+import { peekBackground, takeBackground } from '@/state/partyBackground';
 import { useAuth } from '@/state/auth';
 import { usePlayer } from '@/state/player';
 
@@ -22,12 +23,23 @@ export type Place = 'here' | 'away';
 /** Remembered per party for as long as the app runs, so re-opening the room does not ask again. */
 const places = new Map<string, Place>();
 
-/** A known playhead: `ms` into item `id` at wall-clock `at` (ms), frozen while `paused`. */
+/** A known playhead: `ms` into item `id` at local wall-clock `at` (ms), frozen while `paused`. */
 type Anchor = { id: Uuid | null; ms: number; at: number; paused: boolean };
 
+/**
+ * Server clock minus this phone's, in ms. Every session read carries `serverNowUtc`; the server's
+ * timestamps are turned into this phone's time with it, so a phone whose clock runs a few seconds off
+ * still lands on the host's second.
+ */
+let skew = 0;
+function learnClock(d: Pick<PlaybackSession, 'serverNowUtc'>) {
+  if (d.serverNowUtc) skew = +new Date(d.serverNowUtc) - Date.now();
+}
+const localTime = (serverIso: string) => +new Date(serverIso) - skew;
+
 function anchorOf(d: Pick<PlaybackSession, 'nowPlayingId' | 'positionMs' | 'positionAtUtc' | 'paused' | 'nowPlayingStartedAtUtc'>): Anchor | null {
-  if (d.positionMs != null && d.positionAtUtc) return { id: d.nowPlayingId, ms: d.positionMs, at: +new Date(d.positionAtUtc), paused: !!d.paused };
-  if (d.nowPlayingStartedAtUtc) return { id: d.nowPlayingId, ms: 0, at: +new Date(d.nowPlayingStartedAtUtc), paused: false };
+  if (d.positionMs != null && d.positionAtUtc) return { id: d.nowPlayingId, ms: d.positionMs, at: localTime(d.positionAtUtc), paused: !!d.paused };
+  if (d.nowPlayingStartedAtUtc) return { id: d.nowPlayingId, ms: 0, at: localTime(d.nowPlayingStartedAtUtc), paused: false };
   return null;
 }
 /** Where the playing device should be now, in seconds. */
@@ -69,8 +81,12 @@ export function useRoom(eventId: string) {
 
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [queue, setQueue] = useState<QueueEntry[]>([]);
-  const [session, setSession] = useState<RoomSession | null>(null);
-  const [myDeviceId, setMyDeviceId] = useState<Uuid | null>(null);
+  // a party left playing in the background starts out as this screen's session, on this device
+  const [session, setSession] = useState<RoomSession | null>(() => {
+    const b = peekBackground(eventId);
+    return b ? { sessionId: b.sessionId, deviceId: b.deviceId, nowPlayingId: b.nowPlayingId } : null;
+  });
+  const [myDeviceId, setMyDeviceId] = useState<Uuid | null>(() => peekBackground(eventId)?.deviceId ?? null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [loading, setLoading] = useState(true);
@@ -139,6 +155,8 @@ export function useRoom(eventId: string) {
 
   /* ---- initial load, roster, own session ---- */
   useEffect(() => {
+    // Re-opening a party that kept playing in the background: this screen drives it again.
+    takeBackground(eventId);
     const t = setTimeout(async () => {
       reload();
       try { setMyDeviceId(await ensureDevice()); } catch { /* shown when the user tries to play */ }
@@ -148,6 +166,7 @@ export function useRoom(eventId: string) {
         else {
           // A guest's way in: whatever the party plays, on whoever's device (404: nothing, or an older API).
           const r = await api.events.playbackSession(eventId);
+          learnClock(r.data);
           if (!r.data.endedAtUtc) {
             anchor.current = anchorOf(r.data);
             setSession({ sessionId: r.data.sessionId, deviceId: r.data.deviceId, nowPlayingId: r.data.nowPlayingId });
@@ -238,6 +257,7 @@ export function useRoom(eventId: string) {
     if (!session || session.deviceId) return;
     const id = session.sessionId;
     api.playback.get(id)
+      .then((r) => { learnClock(r.data); if (!anchor.current || anchor.current.id !== r.data.nowPlayingId) anchor.current = anchorOf(r.data) ?? anchor.current; return r; })
       .then((r) => setSession((prev) => (prev && prev.sessionId === id && !prev.deviceId ? { ...prev, deviceId: r.data.deviceId } : prev)))
       .catch(() => {});
   }, [session?.sessionId, session?.deviceId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -251,7 +271,14 @@ export function useRoom(eventId: string) {
     if (!isMine || !session) return;
     if (session.nowPlayingId === null) { player.stop(); played.current = null; return; }
     const key = `${session.sessionId}:${session.nowPlayingId}`;
-    if (!nowEntry || played.current === key) return;
+    if (!nowEntry) return;
+    // Already on (handed back from the background, or the screen re-mounted): take over, do not restart.
+    if (player.controlled && player.track?.id === nowEntry.youtubeVideoId) {
+      played.current = key;
+      player.setController({ ended: advance, next: advance });
+      return;
+    }
+    if (played.current === key) return;
     played.current = key;
     player.playControlled(nowTrack, event?.name ?? 'Parti', { ended: advance, next: advance });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -316,8 +343,8 @@ export function useRoom(eventId: string) {
   const report = useCallback(() => {
     const s = sessionRef.current;
     const p = playerRef.current;
-    if (!s || !reporting.current || !p.controlled || p.buffering) return;
-    api.playback.reportPosition(s.sessionId, { positionMs: Math.round(p.getPosition() * 1000), paused: !p.playing })
+    if (!s || !s.nowPlayingId || !reporting.current || !p.controlled || p.buffering) return;
+    api.playback.reportPosition(s.sessionId, { nowPlayingId: s.nowPlayingId, positionMs: Math.round(p.getPosition() * 1000), paused: !p.playing })
       .catch((e) => {
         // an API without the endpoint: stop asking for as long as this room is open
         if (e instanceof ApiError && (e.status === 404 || e.status === 405)) reporting.current = false;
@@ -364,6 +391,7 @@ export function useRoom(eventId: string) {
       const deviceId = await ensureDevice();
       setMyDeviceId(deviceId);
       if (!(await releaseOther(deviceId))) return;
+      takeBackground(); // another party kept playing in the background: this one replaces it
       let started: { sessionId: Uuid; nowPlayingId: Uuid | null };
       try {
         started = await api.playback.start({ deviceId, sourceType: PlaybackSourceType.Event, sourceId: eventId });

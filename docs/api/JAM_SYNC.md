@@ -1,5 +1,10 @@
 # Jam senkronu: API'ye eklenecekler
 
+> **Durum:** API'de uygulandı (API reference: `GET /events/{eventId}/playback-session`,
+> `PUT /playback-sessions/{sessionId}/position`, SPEC-059). Gerçek sözleşme API'nin `docs/api/ENDPOINTS.md`
+> dosyasında. Buradan iki fark var: konum bildirimi `nowPlayingId` de taşıyor, ve yanıtlar saat farkı için
+> `serverNowUtc` içeriyor. Mobil ikisini de kullanıyor. Bu dosya ilk isteğin kaydı olarak duruyor.
+
 Amaç: partinin hoparlörü olan cihaz (kurucu) bir şarkı çalarken, **uzaktaki** misafirlerin telefonunda aynı
 şarkı aynı saniyede çalsın. Aynı ortamdaki misafirler sessiz kalır. Bu karar tamamen mobilde verilir, API'nin
 bilmesine gerek yok.

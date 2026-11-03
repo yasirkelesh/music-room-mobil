@@ -78,6 +78,12 @@ export function useTracks(videoIds: string[]): Record<string, Track> {
   ]));
 }
 
+/** One track outside React (a party playing in the background): cached, fetched once, never throws. */
+export async function getTrack(videoId: string): Promise<Track> {
+  if (!cache.has(videoId) && !isFailed(videoId)) await fetchTrack(videoId);
+  return cache.get(videoId) ?? placeholderTrack(videoId);
+}
+
 /** Seeds the cache with metadata we already hold (search results), so lists show titles at once. */
 export function rememberTracks(list: TrackMetadata[]) {
   for (const m of list) cache.set(m.youtubeVideoId, trackFromMeta(m));

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown, FadeOut, LinearTransition } from 'react-native-reanimated';
@@ -120,10 +120,27 @@ export default function Cabinet() {
   };
   const move = (dir: -1 | 1) => moveAt(heldIndex, dir);
 
-  const removeAt = (i: number) => Alert.alert('Plağı çıkar', `“${items[i].track.title}” listeden çıkarılsın mı?`, [
-    { text: 'Vazgeç', style: 'cancel' },
-    { text: 'Çıkar', style: 'destructive', onPress: () => pl.remove(items[i].id) },
-  ]);
+  /**
+   * "Take the record off the shelf?" — in the app's own sheet, with the record on it, instead of a bare
+   * system dialog. The sheet's Vazgeç (or a tap outside) is the way out.
+   */
+  const confirmRemove = (it: (typeof items)[number], done?: () => void) => {
+    const t = it.track;
+    const playing = player.track?.id === t.id && fromHere;
+    showActions({ title: t.title, subtitle: t.artist || undefined, cover: t.cover }, [{
+      label: 'Raftan çıkar',
+      icon: 'close',
+      destructive: true,
+      hint: `“${p.name}” dolabından kalkar${p.licence === LicenceMode.Everyone || pl.collaborators.length > 0 ? ', düzenleyen herkes için' : ''}.${playing ? ' Şu an çalıyor; bitene kadar çalmaya devam eder.' : ''} İstersen sonra yeniden ekleyebilirsin.`,
+      run: async () => {
+        if (await pl.remove(it.id)) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          done?.();
+        }
+      },
+    }]);
+  };
+  const removeAt = (i: number) => confirmRemove(items[i]);
 
   const rowMenu = (i: number, t: Track) => {
     const opts: Action[] = [{ label: 'Buradan çal', icon: 'play', run: () => playFrom(i) }];
@@ -133,13 +150,7 @@ export default function Cabinet() {
     showActions({ title: t.title, subtitle: t.artist, cover: t.cover }, opts);
   };
 
-  const removeHeld = () => {
-    if (!heldItem) return;
-    Alert.alert('Plağı çıkar', `“${heldItem.track.title}” raftan çıkarılsın mı?`, [
-      { text: 'Vazgeç', style: 'cancel' },
-      { text: 'Çıkar', style: 'destructive', onPress: async () => { if (await pl.remove(heldItem.id)) setHeld(undefined); } },
-    ]);
-  };
+  const removeHeld = () => { if (heldItem) confirmRemove(heldItem, () => setHeld(undefined)); };
 
   const toggle = () => (fromHere ? player.toggle() : items.length ? playFrom(0) : undefined);
   const rule = [
