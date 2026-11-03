@@ -41,3 +41,8 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# AI assistant / editor-agent files: local working notes, not part of the project
+AGENTS.md
+CLAUDE.md
+.claude/
